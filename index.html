@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sınıf Oyunları</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f1f5f9;color:#0f172a}
+header{background:#0f172a;color:white;padding:20px;text-align:center}
+header h1{margin:0;font-size:26px}
+nav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;padding:15px}
+button,select,input{font:inherit}
+button{border:0;border-radius:10px;padding:12px 18px;cursor:pointer}
+.primary{background:#0f172a;color:white}
+.secondary{background:#e2e8f0;color:#0f172a}
+button:hover{opacity:.85}
+main{max-width:900px;margin:20px auto;padding:15px}
+.card{background:white;padding:22px;border-radius:16px;margin-bottom:18px;box-shadow:0 3px 12px #0000000a}
+input,select{width:100%;padding:12px;margin:6px 0 14px;border:1px solid #cbd5e1;border-radius:8px;background:white}
+label{font-weight:bold}
+h2{margin-top:0}
+.hidden{display:none!important}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.answer{background:#e2e8f0;color:#0f172a;min-height:70px;font-size:18px;text-align:left}
+.answer.correct{background:#bbf7d0}
+.answer.wrong{background:#fecaca}
+.question-item{padding:14px 0;border-bottom:1px solid #e2e8f0}
+.small{font-size:13px;color:#64748b}
+#feedback{font-weight:bold;font-size:20px;margin:20px 0}
+@media(max-width:520px){
+ .grid{grid-template-columns:1fr}
+ main{padding:10px}
+ .card{padding:16px}
+ header h1{font-size:22px}
+}
+</style>
+</head>
+
+<body>
+<header>
+  <h1>Sınıf Oyunları</h1>
+  <p>İngilizce öğren, oyna ve geliş!</p>
+</header>
+
+<nav>
+  <button class="primary" onclick="showPage('game')">Akıllı Tahta</button>
+  <button class="secondary" onclick="showPage('teacher')">Öğretmen Paneli</button>
+</nav>
+
+<main>
+  <section id="game">
+    <div class="card">
+      <h2>Bir sınıf seç</h2>
+      <select id="gameClass">
+        <option value="">Sınıflar yükleniyor...</option>
+      </select>
+      <button class="primary" onclick="startGame()">Oyunu Başlat</button>
+    </div>
+
+    <div id="quiz" class="card hidden">
+      <p id="questionNumber" class="small"></p>
+      <h2 id="questionText"></h2>
+      <div id="answers" class="grid"></div>
+      <div id="feedback" aria-live="polite"></div>
+      <button id="nextButton" class="primary hidden" onclick="nextQuestion()">Sonraki Soru</button>
+    </div>
+  </section>
+
+  <section id="teacher" class="hidden">
+    <div id="loginCard" class="card">
+      <h2>Öğretmen Girişi</h2>
+      <p class="small">Soruları yönetmek için hesabınla giriş yap.</p>
+
+      <form id="loginForm">
+        <label>E-posta</label>
+        <input id="email" type="email" autocomplete="username" required>
+
+        <label>Şifre</label>
+        <input id="password" type="password" autocomplete="current-password" required>
+
+        <button class="primary" type="submit">Giriş Yap</button>
+      </form>
+      <p id="loginMessage" aria-live="polite"></p>
+    </div>
+
+    <div id="adminPanel" class="hidden">
+      <div class="card">
+        <h2>Öğretmen Paneli</h2>
+        <p>Giriş başarılı. Sorularını buradan yönetebilirsin.</p>
+        <button class="secondary" onclick="logout()">Çıkış Yap</button>
+      </div>
+
+      <div class="card">
+        <h2 id="formTitle">Yeni Soru Ekle</h2>
+
+        <form id="questionForm">
+          <input type="hidden" id="questionId">
+
+          <label>Sınıf</label>
+          <select id="teacherClass" required></select>
+
+          <label>Soru</label>
+          <input id="questionInput" placeholder="Örn. Choose the correct answer." required>
+
+          <label>A seçeneği</label>
+          <input id="optionA" required>
+
+          <label>B seçeneği</label>
+          <input id="optionB" required>
+
+          <label>C seçeneği</label>
+          <input id="optionC" required>
+
+          <label>D seçeneği</label>
+          <input id="optionD" required>
+
+          <label>Doğru cevap</label>
+          <select id="correctAnswer" required>
+            <option value="A">A</option>
+            <option value="B">B</option>
+            <option value="C">C</option>
+            <option value="D">D</option>
+          </select>
+
+          <button class="primary" type="submit">Soruyu Kaydet</button>
+          <button class="secondary" type="button" onclick="resetQuestionForm()">Temizle</button>
+        </form>
+        <p id="saveMessage" aria-live="polite"></p>
+      </div>
+
+      <div class="card">
+        <h2>Sorularım</h2>
+        <label>Sınıf seç</label>
+        <select id="filterClass" onchange="loadQuestions()"></select>
+        <div id="questionList">Sorular yükleniyor...</div>
+      </div>
+    </div>
+  </section>
+
+  <p id="globalMessage" aria-live="polite"></p>
+</main>
+
+<script>
+const SUPABASE_URL = 'https://jqsblnpimzfmdwdlynuh.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_EsAdPppgttY3lI0Sjh_EPA_VQgtypJd';
+
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let classes = [];
+let currentQuestion = null;
+let questionCount = 0;
+let answered = false;
+
+function showPage(page) {
+  document.getElementById('game').classList.toggle('hidden', page !== 'game');
+  document.getElementById('teacher').classList.toggle('hidden', page !== 'teacher');
+}
+
+function message(id, text) {
+  document.getElementById(id).textContent = text;
+}
+
+function fillSelect(selectId, items) {
+  const select = document.getElementById(selectId);
+  select.replaceChildren();
+
+  items.forEach(item => {
+    const option = document.createElement('option');
+    option.value = item.class_id;
+    option.textContent = item.class_name;
+    select.appendChild(option);
+  });
+}
+
+async function loadClasses() {
+  const { data, error } = await db.rpc('get_class_list');
+
+  if (error) {
+    message('globalMessage', 'Sınıflar yüklenemedi: ' + error.message);
+    return;
+  }
+
+  classes = data || [];
+
+  if (!classes.length) {
+    message('globalMessage', 'Henüz sınıf bulunamadı.');
+    return;
+  }
+
+  fillSelect('gameClass', classes);
+  fillSelect('teacherClass', classes);
+  fillSelect('filterClass', classes);
+}
+
+async function checkSession() {
+  const { data } = await db.auth.getSession();
+  updateTeacherView(!!data.session);
+}
+
+function updateTeacherView(loggedIn) {
+  document.getElementById('loginCard').classList.toggle('hidden', loggedIn);
+  document.getElementById('adminPanel').classList.toggle('hidden', !loggedIn);
+
+  if (loggedIn) loadQuestions();
+}
+
+document.getElementById('loginForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  message('loginMessage', 'Giriş yapılıyor...');
+
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+
+  const { error } = await db.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    message('loginMessage', 'Giriş başarısız. E-posta ve şifreni kontrol et.');
+    return;
+  }
+
+  message('loginMessage', '');
+  updateTeacherView(true);
+});
+
+async function logout() {
+  await db.auth.signOut();
+  updateTeacherView(false);
+  message('loginMessage', 'Çıkış yapıldı.');
+}
+
+async function loadQuestions() {
+  const classId = Number(document.getElementById('filterClass').value);
+  const list = document.getElementById('questionList');
+
+  if (!classId) return;
+
+  list.textContent = 'Sorular yükleniyor...';
+
+  const { data, error } = await db
+    .from('questions')
+    .select('*')
+    .eq('class_id', classId)
+    .order('id', { ascending: false });
+
+  if (error) {
+    list.textContent = 'Sorular yüklenemedi. Öğretmen hesabınla giriş yaptığından emin ol.';
+    return;
+  }
+
+  list.replaceChildren();
+
+  if (!data.length) {
+    list.textContent = 'Bu sınıfta henüz soru yok.';
+    return;
+  }
+
+  data.forEach(q => {
+    const item = document.createElement('div');
+    item.className = 'question-item';
+
+    const title = document.createElement('p');
+    title.textContent = q.question_text;
+
+    const edit = document.createElement('button');
+    edit.className = 'secondary';
+    edit.textContent = 'Düzenle';
+    edit.onclick = () => editQuestion(q);
+
+    const del = document.createElement('button');
+    del.className = 'secondary';
+    del.textContent = 'Sil';
+    del.style.marginLeft = '8px';
+    del.onclick = () => deleteQuestion(q.id);
+
+    item.append(title, edit, del);
+    list.appendChild(item);
+  });
+}
+
+document.getElementById('questionForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  message('saveMessage', 'Kaydediliyor...');
+
+  const id = document.getElementById('questionId').value;
+
+  const record = {
+    class_id: Number(document.getElementById('teacherClass').value),
+    question_text: document.getElementById('questionInput').value.trim(),
+    option_a: document.getElementById('optionA').value.trim(),
+    option_b: document.getElementById('optionB').value.trim(),
+    option_c: document.getElementById('optionC').value.trim(),
+    option_d: document.getElementById('optionD').value.trim(),
+    correct_answer: document.getElementById('correctAnswer').value
+  };
+
+  let result;
+
+  if (id) {
+    result = await db.from('questions').update(record).eq('id', Number(id));
+  } else {
+    result = await db.from('questions').insert(record);
+  }
+
+  if (result.error) {
+    message('saveMessage', 'Kaydedilemedi: ' + result.error.message);
+    return;
+  }
+
+  message('saveMessage', 'Soru başarıyla kaydedildi.');
+  resetQuestionForm();
+  await loadQuestions();
+});
+
+function editQuestion(q) {
+  document.getElementById('questionId').value = q.id;
+  document.getElementById('teacherClass').value = q.class_id;
+  document.getElementById('questionInput').value = q.question_text;
+  document.getElementById('optionA').value = q.option_a;
+  document.getElementById('optionB').value = q.option_b;
+  document.getElementById('optionC').value = q.option_c;
+  document.getElementById('optionD').value = q.option_d;
+  document.getElementById('correctAnswer').value = q.correct_answer;
+  document.getElementById('formTitle').textContent = 'Soruyu Düzenle';
+  document.getElementById('questionForm').scrollIntoView({ behavior: 'smooth' });
+}
+
+function resetQuestionForm() {
+  document.getElementById('questionForm').reset();
+  document.getElementById('questionId').value = '';
+  document.getElementById('formTitle').textContent = 'Yeni Soru Ekle';
+}
+
+async function deleteQuestion(id) {
+  if (!confirm('Bu soruyu silmek istediğine emin misin?')) return;
+
+  const { error } = await db.from('questions').delete().eq('id', id);
+
+  if (error) {
+    alert('Silinemedi: ' + error.message);
+    return;
+  }
+
+  await loadQuestions();
+}
+
+async function startGame() {
+  const classId = Number(document.getElementById('gameClass').value);
+
+  if (!classId) {
+    alert('Lütfen bir sınıf seç.');
+    return;
+  }
+
+  questionCount = 0;
+  document.getElementById('quiz').classList.remove('hidden');
+  await nextQuestion();
+}
+
+async function nextQuestion() {
+  const classId = Number(document.getElementById('gameClass').value);
+
+  answered = false;
+  document.getElementById('feedback').textContent = '';
+  document.getElementById('nextButton').classList.add('hidden');
+
+  const { data, error } = await db.rpc('get_random_question', {
+    selected_class_id: classId
+  });
+
+  if (error) {
+    document.getElementById('questionText').textContent = 'Sorular yüklenemedi.';
+    document.getElementById('answers').replaceChildren();
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    document.getElementById('questionText').textContent =
+      'Bu sınıfta henüz soru yok. Öğretmen panelinden soru ekleyebilirsin.';
+    document.getElementById('answers').replaceChildren();
+    return;
+  }
+
+  currentQuestion = data[0];
+  questionCount++;
+
+  document.getElementById('questionNumber').textContent = 'Soru ' + questionCount;
+  document.getElementById('questionText').textContent = currentQuestion.question_text;
+
+  const answers = document.getElementById('answers');
+  answers.replaceChildren();
+
+  [
+    ['A', currentQuestion.option_a],
+    ['B', currentQuestion.option_b],
+    ['C', currentQuestion.option_c],
+    ['D', currentQuestion.option_d]
+  ].forEach(([letter, text]) => {
+    const button = document.createElement('button');
+    button.className = 'answer';
+    button.textContent = letter + ') ' + text;
+    button.onclick = () => checkAnswer(letter, button);
+    answers.appendChild(button);
+  });
+}
+
+async function checkAnswer(letter, selectedButton) {
+  if (answered) return;
+
+  answered = true;
+
+  const { data, error } = await db.rpc('check_answer', {
+    selected_question_id: currentQuestion.question_id,
+    selected_option: letter
+  });
+
+  if (error) {
+    answered = false;
+    message('feedback', 'Cevap kontrol edilemedi. Tekrar deneyebilirsin.');
+    return;
+  }
+
+  const buttons = document.querySelectorAll('.answer');
+  buttons.forEach(button => button.disabled = true);
+
+  if (data === true) {
+    selectedButton.classList.add('correct');
+    message('feedback', 'Doğru cevap! Harika!');
+  } else {
+    selectedButton.classList.add('wrong');
+    message('feedback', 'Yanlış cevap. Bir sonraki soruya geçebilirsin.');
+  }
+
+  document.getElementById('nextButton').classList.remove('hidden');
+}
+
+db.auth.onAuthStateChange((_event, session) => {
+  updateTeacherView(!!session);
+});
+
+loadClasses().then(checkSession);
+</script>
+</body>
+</html>
