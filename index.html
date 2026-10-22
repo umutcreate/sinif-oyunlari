@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0f172a">
+<title>İngilizce Turnuvası | İngilizce Quiz</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--navy:#0f172a;--navy-light:#1e293b;--blue:#3b82f6;--purple:#8b5cf6;--bg:#f1f5f9;--white:#fff;--muted:#64748b;--border:#e2e8f0;--green:#16a34a;--red:#dc2626;--radius:20px}
+*,:before,:after{box-sizing:border-box}
+body{margin:0;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--navy);line-height:1.5}
+button,input,select,textarea{font:inherit}button{cursor:pointer;transition:transform .16s ease,background .16s ease,box-shadow .16s ease}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #93c5fd;outline-offset:3px}button:disabled{cursor:not-allowed;opacity:.75}
+header{background:linear-gradient(125deg,#0f172a,#172554 65%,#312e81);color:white;padding:30px 20px 24px;text-align:center;position:relative;overflow:hidden}
+header:after{content:"";position:absolute;width:260px;height:260px;right:-80px;top:-180px;border:40px solid #ffffff0c;border-radius:50%}
+.brand{font-size:clamp(27px,4vw,38px);font-weight:850;letter-spacing:-1px;margin:0}.brand span{color:#93c5fd}header p{margin:7px 0 0;color:#cbd5e1;font-size:15px}
+nav{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;padding:16px;background:#fff;border-bottom:1px solid var(--border)}
+button{border:0;border-radius:12px;padding:12px 18px;font-weight:700}.primary{background:var(--navy);color:#fff;box-shadow:0 4px 10px #0f172a12}.primary:hover{background:#2e3f51;transform:translateY(-1px)}.secondary{background:#e2e8f0;color:var(--navy)}.secondary:hover{background:#cbd5e1}.nav-button{background:transparent;color:#475569}.nav-button.active{background:var(--navy);color:white}
+main{width:min(1050px,100%);margin:26px auto;padding:0 18px 40px}.card{background:var(--white);padding:26px;border:1px solid #e2e8f0;border-radius:var(--radius);margin-bottom:20px;box-shadow:0 8px 28px #0f172a08}
+h2{margin:0 0 14px;font-size:clamp(21px,3vw,28px);letter-spacing:-.5px}h3{margin:0 0 10px}p{margin-top:0}.small{font-size:13px;color:var(--muted)}.eyebrow{color:var(--blue);font-size:12px;font-weight:850;letter-spacing:1.4px;text-transform:uppercase}.hidden{display:none!important}
+label{display:block;font-weight:750;margin:13px 0 6px}input,select,textarea{width:100%;padding:13px 14px;margin:0 0 9px;border:1px solid #cbd5e1;border-radius:11px;background:#fff;color:var(--navy);min-height:48px}textarea{min-height:90px;resize:vertical}input:focus,select:focus,textarea:focus{border-color:var(--blue)}
+.form-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.form-actions button{flex:1}.game-setup{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;align-items:end;gap:14px}.game-setup label{margin-top:0}.game-setup button{min-height:48px}
+.game-topline{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px}.pill{display:inline-flex;align-items:center;gap:7px;background:#eff6ff;color:#1d4ed8;border-radius:999px;padding:8px 13px;font-size:14px;font-weight:800}.score-box{background:var(--navy);color:#fff;padding:11px 17px;border-radius:14px;text-align:center;min-width:115px}.score-box span{display:block;font-size:12px;color:#cbd5e1}.score-box strong{font-size:25px;line-height:1.2}
+.progress-track{height:7px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin:0 0 25px}.progress-fill{height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--purple));transition:width .25s ease}.question-title{font-size:clamp(25px,4.4vw,40px);line-height:1.3;letter-spacing:-.8px;margin:10px 0 26px;overflow-wrap:anywhere}.answers-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.answer{position:relative;background:#f8fafc;color:var(--navy);border:2px solid #e2e8f0;min-height:92px;padding:18px 20px;font-size:clamp(17px,2.5vw,23px);text-align:left;display:flex;align-items:center;gap:14px;overflow-wrap:anywhere}.answer:hover:not(:disabled){background:#eff6ff;border-color:#93c5fd;transform:translateY(-2px);box-shadow:0 8px 18px #2563eb12}.answer-letter{flex:0 0 38px;height:38px;display:grid;place-items:center;background:#e2e8f0;border-radius:10px;font-weight:900;font-size:17px}.answer.correct{background:#dcfce7;border-color:#22c55e;color:#14532d}.answer.correct .answer-letter{background:#16a34a;color:white}.answer.wrong{background:#fee2e2;border-color:#ef4444;color:#7f1d1d}.answer.wrong .answer-letter{background:#dc2626;color:white}.answer.reveal{border-color:#22c55e;background:#dcfce7;color:#14532d}.answer.reveal .answer-letter{background:#16a34a;color:#fff}
+#feedback{min-height:32px;font-size:clamp(17px,2.5vw,22px);font-weight:850;margin:20px 0 12px}#feedback.good{color:#15803d}#feedback.bad{color:#b91c1c}.quiz-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.quiz-actions button{min-height:48px}#questionNumber{margin:0}
+.notice{border-radius:12px;padding:13px 15px;background:#eff6ff;color:#1e40af;margin:12px 0}.notice.error{background:#fef2f2;color:#991b1b}.notice.success{background:#f0fdf4;color:#166534}
+.question-item,.test-item{padding:18px 0;border-bottom:1px solid var(--border)}.question-item:last-child,.test-item:last-child{border-bottom:0}.question-item p,.test-item p{font-weight:700;margin-bottom:10px;overflow-wrap:anywhere}.question-meta{display:flex;flex-wrap:wrap;gap:6px;margin:9px 0}.tag{display:inline-block;background:#f1f5f9;color:#475569;border-radius:7px;padding:4px 8px;font-size:12px;font-weight:750}.question-actions{display:flex;gap:8px;flex-wrap:wrap}.question-actions button{padding:9px 13px;font-size:14px}.danger{background:#fee2e2;color:#991b1b}.danger:hover{background:#fecaca}
+.class-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:8px 0 15px}.class-check{display:flex;align-items:center;gap:10px;padding:12px;margin:0;border:1px solid var(--border);border-radius:11px;background:#f8fafc;cursor:pointer}.class-check input,.question-pick input{width:19px;height:19px;min-height:0;margin:0;flex:0 0 auto;accent-color:var(--blue)}.class-check:has(input:checked),.question-pick:has(input:checked){border-color:#93c5fd;background:#eff6ff}.all-classes{font-weight:850;background:#eef2ff;border-color:#c7d2fe}.empty-state{text-align:center;padding:25px 15px;color:var(--muted);background:#f8fafc;border-radius:12px}#globalMessage{white-space:pre-wrap}.section-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.question-pick{display:flex;align-items:flex-start;gap:10px;padding:12px;margin:8px 0;border:1px solid var(--border);border-radius:11px;background:#f8fafc;cursor:pointer}.question-pick span{flex:1}.question-pick small{display:block;color:var(--muted);font-weight:400;margin-top:3px}.test-questions{max-height:360px;overflow:auto;border:1px solid var(--border);padding:8px 12px;border-radius:12px}.two-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+footer{text-align:center;padding:0 20px 30px;color:var(--muted);font-size:13px}@keyframes pop{0%{transform:scale(.98)}60%{transform:scale(1.015)}100%{transform:scale(1)}}.pop{animation:pop .25s ease}
+@media(max-width:700px){.game-setup{grid-template-columns:1fr}.game-setup button{width:100%}.two-columns{grid-template-columns:1fr}}
+@media(max-width:600px){main{padding:0 11px 28px;margin:15px auto}.card{padding:18px;border-radius:16px}.answers-grid{grid-template-columns:1fr;gap:10px}.answer{min-height:68px;padding:14px;font-size:18px}.answer-letter{flex-basis:34px;height:34px}.class-checks{grid-template-columns:1fr}.brand{font-size:27px}header{padding:24px 15px 20px}}
+@media(prefers-reduced-motion:reduce){*,:before,:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<header><h1 class="brand">İNGİLİZCE <span>TURNUVASI</span></h1><p>İngilizce öğren. Oyna. Geliş.</p></header>
+<nav aria-label="Ana menü">
+  <button id="gameNav" class="nav-button active" onclick="showPage('game')">Akıllı Tahta</button>
+  <button id="teacherNav" class="nav-button" onclick="showPage('teacher')">Öğretmen Paneli</button>
+</nav>
+<main>
+<section id="game">
+  <div class="card">
+    <p class="eyebrow">Oyuna hazır mısın?</p><h2>Sınıfını ve testini seç</h2>
+    <p class="small">Sınıfına atanmış testlerden birini çöz, doğru cevaplarla puan topla.</p>
+    <div class="game-setup">
+      <div><label for="gameClass">Sınıf</label><select id="gameClass"><option value="">Sınıflar yükleniyor...</option></select></div>
+      <div><label for="gameTest">Test</label><select id="gameTest" disabled><option value="">Önce sınıf seç</option></select></div>
+      <button class="primary" onclick="startGame()">Testi Başlat</button>
+    </div>
+    <p id="gameSetupMessage" class="small" aria-live="polite"></p>
+  </div>
+  <div id="quiz" class="card hidden">
+    <div class="game-topline"><span id="classPill" class="pill">Sınıf · Test</span><div class="score-box"><span>TOPLAM PUAN</span><strong id="score">0</strong></div></div>
+    <div class="progress-track" aria-hidden="true"><div id="progressFill" class="progress-fill"></div></div>
+    <div class="game-topline"><p id="questionNumber" class="small">Soru 1</p><span id="questionTotal" class="small"></span></div>
+    <h2 id="questionText" class="question-title">Soru yükleniyor...</h2><div id="answers" class="answers-grid"></div><div id="feedback" aria-live="polite"></div>
+    <div class="quiz-actions"><button id="nextButton" class="primary hidden" onclick="nextQuestion()">Sonraki Soru →</button><button class="secondary" onclick="resetGameView()">Testlerden çık</button></div>
+  </div>
+</section>
+
+<section id="teacher" class="hidden">
+  <div id="loginCard" class="card"><p class="eyebrow">Yönetim</p><h2>Öğretmen girişi</h2><p class="small">Soru ve testlerini yönetmek için giriş yap.</p>
+    <form id="loginForm"><label for="email">E-posta</label><input id="email" type="email" autocomplete="username" required><label for="password">Şifre</label><input id="password" type="password" autocomplete="current-password" required><button class="primary" type="submit">Giriş Yap</button></form><p id="loginMessage" aria-live="polite"></p>
+  </div>
+  <div id="adminPanel" class="hidden">
+    <div class="card"><p class="eyebrow">Kontrol merkezi</p><h2>Öğretmen Paneli</h2><p class="small">Soru havuzunu oluştur, soruları testlerde birleştir ve testleri sınıflara ata.</p><button class="secondary" onclick="logout()">Güvenli Çıkış</button></div>
+    <div class="card">
+      <p class="eyebrow">Soru havuzu</p><h2 id="formTitle">Yeni soru ekle</h2>
+      <form id="questionForm"><input type="hidden" id="questionId">
+        <label for="questionInput">Soru metni</label><textarea id="questionInput" placeholder="Örn. Choose the correct answer." required></textarea>
+        <div class="two-columns"><div><label for="optionA">A seçeneği</label><input id="optionA" required></div><div><label for="optionB">B seçeneği</label><input id="optionB" required></div><div><label for="optionC">C seçeneği</label><input id="optionC" required></div><div><label for="optionD">D seçeneği</label><input id="optionD" required></div></div>
+        <label for="correctAnswer">Doğru cevap</label><select id="correctAnswer" required><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select>
+        <div class="form-actions"><button class="primary" type="submit">Soruyu Kaydet</button><button class="secondary" type="button" onclick="resetQuestionForm()">Temizle</button></div>
+      </form><p id="saveMessage" aria-live="polite"></p>
+    </div>
+    <div class="card"><div class="section-heading"><div><p class="eyebrow">Soru kütüphanesi</p><h2>Soru havuzum</h2></div><span id="questionPoolCount" class="tag">0 soru</span></div><p class="small">Sorular burada saklanır. Bir soruyu testlere eklemek için önce soru havuzuna kaydet.</p><div id="questionList">Sorular yükleniyor...</div></div>
+    <div class="card" id="testEditorCard">
+      <p class="eyebrow">Test oluşturucu</p><h2 id="testFormTitle">Yeni test oluştur</h2>
+      <form id="testForm"><input type="hidden" id="testId">
+        <label for="testName">Test adı</label><input id="testName" placeholder="Örn. Unit 3 – Present Simple" required>
+        <label for="testDescription">Açıklama (isteğe bağlı)</label><textarea id="testDescription" placeholder="Bu test hangi konuyu kapsıyor?"></textarea>
+        <label>Testte bulunacak soruları seç</label><p class="small">Seçtiğin sorular testte yer alır. Soru sırası, aşağıdaki listedeki seçilme sırasına göre değil, kayıt sırasında havuzdaki sıralamaya göre kaydedilir.</p>
+        <div id="testQuestionPicker" class="test-questions"><div class="empty-state">Sorular yükleniyor...</div></div>
+        <div class="form-actions"><button class="primary" type="submit">Testi Kaydet</button><button class="secondary" type="button" onclick="resetTestForm()">Temizle</button></div>
+      </form><p id="testSaveMessage" aria-live="polite"></p>
+    </div>
+    <div class="card"><p class="eyebrow">Test kütüphanesi</p><h2>Testlerim ve sınıf atamaları</h2><p class="small">Bir testi birden fazla sınıfa atayabilir, her sınıfa birden fazla test verebilirsin.</p><div id="testList">Testler yükleniyor...</div></div>
+  </div>
+</section>
+<p id="globalMessage" aria-live="polite"></p>
+</main>
+<footer>İngilizce Turnuvası · İngilizce dersleri için interaktif quiz</footer>
+
+<script>
+const SUPABASE_URL = 'https://jqsblnpimzfmdwdlynuh.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_EsAdPppgttY3lI0Sjh_EPA_VQgtypJd';
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let classes=[], questionPool=[], tests=[], currentTestQuestions=[], currentQuestion=null;
+let questionIndex=0, score=0, answered=false, loadingQuestion=false, gameToken=0;
+
+function message(id,text){const el=document.getElementById(id);if(el)el.textContent=text}
+function showPage(page){
+  document.getElementById('game').classList.toggle('hidden',page!=='game');
+  document.getElementById('teacher').classList.toggle('hidden',page!=='teacher');
+  document.getElementById('gameNav').classList.toggle('active',page==='game');
+  document.getElementById('teacherNav').classList.toggle('active',page==='teacher');
+}
+function fillSelect(selectId,items,placeholder){
+  const select=document.getElementById(selectId);select.replaceChildren();
+  if(placeholder){const first=document.createElement('option');first.value='';first.textContent=placeholder;select.appendChild(first)}
+  items.forEach(item=>{const option=document.createElement('option');option.value=item.class_id;option.textContent=item.class_name;select.appendChild(option)});
+}
+async function loadClasses(){
+  message('globalMessage','Sınıflar yükleniyor...');
+  const {data,error}=await db.rpc('get_class_list');
+  if(error){message('globalMessage','Sınıflar yüklenemedi. Supabase bağlantısını ve get_class_list fonksiyonunu kontrol et.');console.error(error);return}
+  classes=data||[];
+  if(!classes.length){message('globalMessage','Henüz sınıf bulunamadı.');return}
+  fillSelect('gameClass',classes,'Sınıf seç');
+  renderClassCheckboxes();
+  message('globalMessage','');
+}
+document.getElementById('gameClass').addEventListener('change',loadClassTests);
+async function loadClassTests(){
+  const classId=Number(document.getElementById('gameClass').value),select=document.getElementById('gameTest');
+  select.replaceChildren();select.disabled=true;
+  if(!classId){const o=document.createElement('option');o.value='';o.textContent='Önce sınıf seç';select.appendChild(o);return}
+  const o=document.createElement('option');o.value='';o.textContent='Testler yükleniyor...';select.appendChild(o);
+  const {data,error}=await db.rpc('get_class_tests',{selected_class_id:classId});
+  select.replaceChildren();
+  if(error){const opt=document.createElement('option');opt.value='';opt.textContent='Testler yüklenemedi';select.appendChild(opt);message('gameSetupMessage','Test listesi alınamadı. SQL kurulumunu tamamladığından emin ol.');console.error(error);return}
+  if(!data||!data.length){const opt=document.createElement('option');opt.value='';opt.textContent='Bu sınıfa test atanmamış';select.appendChild(opt);message('gameSetupMessage','Öğretmen panelinden bu sınıfa bir test atamalısın.');return}
+  const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Test seç';select.appendChild(placeholder);
+  data.forEach(t=>{const opt=document.createElement('option');opt.value=t.test_id;opt.textContent=`${t.test_name} (${t.question_count} soru)`;select.appendChild(opt)});
+  select.disabled=false;message('gameSetupMessage','');
+}
+function renderClassCheckboxes(selectedIds=[]){
+  const container=document.getElementById('classAssignmentChecks');if(!container)return;container.replaceChildren();
+  classes.forEach(c=>{const label=document.createElement('label');label.className='class-check';const input=document.createElement('input');input.type='checkbox';input.name='testClass';input.value=c.class_id;input.checked=selectedIds.map(Number).includes(Number(c.class_id));const span=document.createElement('span');span.textContent=c.class_name;label.append(input,span);container.appendChild(label)});
+}
+async function checkSession(){const {data}=await db.auth.getSession();updateTeacherView(!!data.session)}
+function updateTeacherView(loggedIn){
+  document.getElementById('loginCard').classList.toggle('hidden',loggedIn);
+  document.getElementById('adminPanel').classList.toggle('hidden',!loggedIn);
+  if(loggedIn&&classes.length)loadAdminData();
+}
+document.getElementById('loginForm').addEventListener('submit',async event=>{
+  event.preventDefault();message('loginMessage','Giriş yapılıyor...');
+  const {error}=await db.auth.signInWithPassword({email:document.getElementById('email').value,password:document.getElementById('password').value});
+  if(error){message('loginMessage','Giriş başarısız. E-posta ve şifreni kontrol et.');return}
+  message('loginMessage','');updateTeacherView(true);
+});
+async function logout(){await db.auth.signOut();updateTeacherView(false);message('loginMessage','Çıkış yapıldı.')}
+db.auth.onAuthStateChange((_event,session)=>updateTeacherView(!!session));
+
+async function loadAdminData(){await loadQuestions();await loadTests()}
+async function loadQuestions(){
+  const list=document.getElementById('questionList');if(!list)return;list.textContent='Sorular yükleniyor...';
+  const {data,error}=await db.from('questions').select('id,class_id,question_text,option_a,option_b,option_c,option_d,correct_answer,created_at').order('id',{ascending:false});
+  if(error){list.textContent='Sorular yüklenemedi. Öğretmen hesabıyla giriş yaptığından emin ol.';console.error(error);return}
+  questionPool=data||[];message('questionPoolCount',`${questionPool.length} soru`);
+  renderQuestionList();renderQuestionPicker();
+}
+function renderQuestionList(){
+  const list=document.getElementById('questionList');list.replaceChildren();
+  if(!questionPool.length){const e=document.createElement('div');e.className='empty-state';e.textContent='Henüz soru yok. Yukarıdaki formdan soru ekleyebilirsin.';list.appendChild(e);return}
+  questionPool.forEach(q=>{
+    const item=document.createElement('div');item.className='question-item';const title=document.createElement('p');title.textContent=q.question_text;
+    const detail=document.createElement('div');detail.className='question-meta';[['A',q.option_a],['B',q.option_b],['C',q.option_c],['D',q.option_d]].forEach(([l,t])=>{const tag=document.createElement('span');tag.className='tag';tag.textContent=`${l}: ${t}`;detail.appendChild(tag)});
+    const correct=document.createElement('span');correct.className='tag';correct.textContent=`Doğru cevap: ${q.correct_answer}`;detail.appendChild(correct);
+    const actions=document.createElement('div');actions.className='question-actions';const edit=document.createElement('button');edit.className='secondary';edit.textContent='Düzenle';edit.onclick=()=>editQuestion(q);const del=document.createElement('button');del.className='danger';del.textContent='Sil';del.onclick=()=>deleteQuestion(q.id);actions.append(edit,del);item.append(title,detail,actions);list.appendChild(item)
+  });
+}
+function renderQuestionPicker(selectedIds=[]){
+  const picker=document.getElementById('testQuestionPicker');picker.replaceChildren();
+  if(!questionPool.length){const e=document.createElement('div');e.className='empty-state';e.textContent='Önce soru havuzuna soru ekle.';picker.appendChild(e);return}
+  questionPool.forEach(q=>{
+    const label=document.createElement('label');label.className='question-pick';const input=document.createElement('input');input.type='checkbox';input.name='testQuestion';input.value=q.id;input.checked=selectedIds.map(Number).includes(Number(q.id));
+    const span=document.createElement('span');span.textContent=q.question_text;const small=document.createElement('small');small.textContent=`A) ${q.option_a} · B) ${q.option_b} · C) ${q.option_c} · D) ${q.option_d}`;span.appendChild(small);label.append(input,span);picker.appendChild(label)
+  });
+}
+document.getElementById('questionForm').addEventListener('submit',async event=>{
+  event.preventDefault();message('saveMessage','Kaydediliyor...');
+  const id=document.getElementById('questionId').value;
+  const record={question_text:document.getElementById('questionInput').value.trim(),option_a:document.getElementById('optionA').value.trim(),option_b:document.getElementById('optionB').value.trim(),option_c:document.getElementById('optionC').value.trim(),option_d:document.getElementById('optionD').value.trim(),correct_answer:document.getElementById('correctAnswer').value};
+  let result;
+  if(id)result=await db.from('questions').update(record).eq('id',Number(id));
+  else result=await db.from('questions').insert({...record,class_id:classes[0]?.class_id||null}).select('id').single();
+  if(result.error){message('saveMessage','Kaydedilemedi: '+result.error.message);console.error(result.error);return}
+  message('saveMessage','Soru başarıyla kaydedildi. Artık bu soruyu istediğin testlere ekleyebilirsin.');resetQuestionForm();await loadQuestions();
+});
+function editQuestion(q){
+  document.getElementById('questionId').value=q.id;document.getElementById('questionInput').value=q.question_text;document.getElementById('optionA').value=q.option_a;document.getElementById('optionB').value=q.option_b;document.getElementById('optionC').value=q.option_c;document.getElementById('optionD').value=q.option_d;document.getElementById('correctAnswer').value=q.correct_answer;document.getElementById('formTitle').textContent='Soruyu düzenle';document.getElementById('questionForm').scrollIntoView({behavior:'smooth',block:'start'})
+}
+function resetQuestionForm(){document.getElementById('questionForm').reset();document.getElementById('questionId').value='';document.getElementById('formTitle').textContent='Yeni soru ekle';message('saveMessage','')}
+async function deleteQuestion(id){
+  const inTests=tests.filter(t=>t.question_ids?.map(Number).includes(Number(id)));
+  if(inTests.length){alert('Bu soru şu testlerde kullanılıyor: '+inTests.map(t=>t.test_name).join(', ')+'. Önce bu testlerden kaldırman gerekiyor.');return}
+  if(!confirm('Bu soruyu kalıcı olarak silmek istediğine emin misin?'))return;
+  const {error}=await db.from('questions').delete().eq('id',id);if(error){alert('Silinemedi: '+error.message);return}await loadQuestions();await loadTests()
+}
+document.getElementById('testForm').addEventListener('submit',saveTest);
+async function saveTest(event){
+  event.preventDefault();const name=document.getElementById('testName').value.trim(),description=document.getElementById('testDescription').value.trim(),id=document.getElementById('testId').value;
+  const questionIds=[...document.querySelectorAll('input[name="testQuestion"]:checked')].map(x=>Number(x.value));
+  if(!questionIds.length){message('testSaveMessage','Lütfen teste en az bir soru seç.');return}
+  message('testSaveMessage','Test kaydediliyor...');
+  let testId=id?Number(id):null;
+  let result=id?await db.from('tests').update({name,description}).eq('id',testId):await db.from('tests').insert({name,description}).select('id').single();
+  if(result.error){message('testSaveMessage','Test kaydedilemedi: '+result.error.message);console.error(result.error);return}
+  if(!id)testId=Number(result.data.id);
+  const {error:deleteError}=await db.from('test_questions').delete().eq('test_id',testId);
+  if(deleteError){message('testSaveMessage','Test kaydedildi ancak eski soru listesi güncellenemedi: '+deleteError.message);return}
+  const links=questionIds.map((question_id,index)=>({test_id:testId,question_id,position:index+1}));
+  const {error:insertError}=await db.from('test_questions').insert(links);
+  if(insertError){message('testSaveMessage','Test kaydedildi ancak sorular bağlanamadı: '+insertError.message);console.error(insertError);return}
+  message('testSaveMessage',`“${name}” testi ${questionIds.length} soruyla kaydedildi.`);
+  resetTestForm();await loadTests()
+}
+function resetTestForm(){document.getElementById('testForm').reset();document.getElementById('testId').value='';document.getElementById('testFormTitle').textContent='Yeni test oluştur';renderQuestionPicker();message('testSaveMessage','')}
+async function loadTests(){
+  const list=document.getElementById('testList');if(!list)return;list.textContent='Testler yükleniyor...';
+  const {data,error}=await db.from('tests').select('id,name,description,created_at').order('id',{ascending:false});
+  if(error){list.textContent='Testler yüklenemedi. Test tabloları için SQL kurulumunu çalıştırdığından emin ol.';console.error(error);return}
+  tests=[];
+  for(const t of(data||[])){
+    const [{data:qs,error:qe},{data:cts,error:ce}]=await Promise.all([
+      db.from('test_questions').select('question_id,position').eq('test_id',t.id).order('position',{ascending:true}),
+      db.from('class_tests').select('class_id').eq('test_id',t.id)
+    ]);
+    if(qe||ce){console.error(qe||ce);list.textContent='Test detayları alınamadı. RLS politikalarını kontrol et.';return}
+    tests.push({...t,question_ids:(qs||[]).map(x=>Number(x.question_id)),question_count:(qs||[]).length,class_ids:(cts||[]).map(x=>Number(x.class_id))})
+  }
+  renderTestList()
+}
+function renderTestList(){
+  const list=document.getElementById('testList');list.replaceChildren();
+  if(!tests.length){const e=document.createElement('div');e.className='empty-state';e.textContent='Henüz test yok. Test oluşturucu bölümünden ilk testini hazırla.';list.appendChild(e);return}
+  tests.forEach(t=>{
+    const item=document.createElement('div');item.className='test-item';const title=document.createElement('p');title.textContent=t.name;
+    const desc=document.createElement('p');desc.className='small';desc.textContent=t.description||'Açıklama eklenmemiş.';
+    const meta=document.createElement('div');meta.className='question-meta';const count=document.createElement('span');count.className='tag';count.textContent=`${t.question_count} soru`;meta.appendChild(count);
+    t.class_ids.forEach(cid=>{const c=classes.find(x=>Number(x.class_id)===cid);if(c){const tag=document.createElement('span');tag.className='tag';tag.textContent=c.class_name;meta.appendChild(tag)}});
+    const assignmentTitle=document.createElement('label');assignmentTitle.textContent='Bu testi hangi sınıflara ata?';
+    const checks=document.createElement('div');checks.className='class-checks';
+    classes.forEach(c=>{const label=document.createElement('label');label.className='class-check';const input=document.createElement('input');input.type='checkbox';input.name=`assign-${t.id}`;input.value=c.class_id;input.checked=t.class_ids.includes(Number(c.class_id));const span=document.createElement('span');span.textContent=c.class_name;label.append(input,span);checks.appendChild(label)});
+    const actions=document.createElement('div');actions.className='question-actions';
+    const saveAssign=document.createElement('button');saveAssign.className='primary';saveAssign.textContent='Sınıf atamalarını kaydet';saveAssign.onclick=()=>saveTestAssignments(t.id);
+    const edit=document.createElement('button');edit.className='secondary';edit.textContent='Testi düzenle';edit.onclick=()=>editTest(t);
+    const del=document.createElement('button');del.className='danger';del.textContent='Testi sil';del.onclick=()=>deleteTest(t.id);
+    actions.append(saveAssign,edit,del);item.append(title,desc,meta,assignmentTitle,checks,actions);list.appendChild(item)
+  })
+}
+async function saveTestAssignments(testId){
+  const selected=[...document.querySelectorAll(`input[name="assign-${testId}"]:checked`)].map(x=>Number(x.value));
+  const {error:delError}=await db.from('class_tests').delete().eq('test_id',testId);
+  if(delError){alert('Önceki atamalar silinemedi: '+delError.message);return}
+  if(selected.length){const {error}=await db.from('class_tests').insert(selected.map(class_id=>({test_id:testId,class_id})));if(error){alert('Atamalar kaydedilemedi: '+error.message);console.error(error);return}}
+  alert(selected.length?`Test ${selected.length} sınıfa atandı.`:'Testin tüm sınıf atamaları kaldırıldı.');
+  await loadTests();await loadClassTests()
+}
+function editTest(t){
+  document.getElementById('testId').value=t.id;document.getElementById('testName').value=t.name;document.getElementById('testDescription').value=t.description||'';document.getElementById('testFormTitle').textContent='Testi düzenle';renderQuestionPicker(t.question_ids);document.getElementById('testEditorCard').scrollIntoView({behavior:'smooth',block:'start'})
+}
+async function deleteTest(id){
+  if(!confirm('Bu testi ve sınıf atamalarını silmek istediğine emin misin? Sorular soru havuzunda kalır.'))return;
+  const {error}=await db.from('tests').delete().eq('id',id);if(error){alert('Test silinemedi: '+error.message);return}await loadTests();await loadClassTests()
+}
+
+async function startGame(){
+  const classId=Number(document.getElementById('gameClass').value),testId=Number(document.getElementById('gameTest').value);
+  if(!classId){alert('Lütfen bir sınıf seç.');return}if(!testId){alert('Lütfen bu sınıfa atanmış bir test seç.');return}
+  gameToken++;const token=gameToken;questionIndex=0;score=0;answered=false;currentQuestion=null;
+  document.getElementById('score').textContent='0';document.getElementById('quiz').classList.remove('hidden');document.getElementById('quiz').scrollIntoView({behavior:'smooth',block:'start'});
+  const selectedClass=classes.find(c=>Number(c.class_id)===classId);const selectedTest=document.getElementById('gameTest').selectedOptions[0]?.textContent||'Test';
+  document.getElementById('classPill').textContent=`${selectedClass?.class_name||'Sınıf'} · ${selectedTest}`;
+  document.getElementById('feedback').textContent='';document.getElementById('answers').replaceChildren();document.getElementById('nextButton').classList.add('hidden');
+  const {data,error}=await db.rpc('get_test_questions',{selected_test_id:testId});
+  if(token!==gameToken)return;
+  if(error){console.error(error);message('feedback','Test soruları yüklenemedi. SQL kurulumunu kontrol et.');return}
+  currentTestQuestions=data||[];
+  if(!currentTestQuestions.length){document.getElementById('questionText').textContent='Bu testte henüz soru yok.';message('feedback','Öğretmen panelinden teste soru ekle.');return}
+  await showCurrentQuestion()
+}
+async function showCurrentQuestion(){
+  answered=false;currentQuestion=currentTestQuestions[questionIndex];
+  document.getElementById('feedback').textContent='';document.getElementById('feedback').className='';document.getElementById('nextButton').classList.add('hidden');
+  document.getElementById('questionNumber').textContent=`Soru ${questionIndex+1} / ${currentTestQuestions.length}`;
+  document.getElementById('questionTotal').textContent=`${questionIndex+1}/${currentTestQuestions.length}`;
+  document.getElementById('questionText').textContent=currentQuestion.question_text;
+  document.getElementById('progressFill').style.width=`${((questionIndex)/currentTestQuestions.length)*100}%`;
+  const answers=document.getElementById('answers');answers.replaceChildren();
+  [['A',currentQuestion.option_a],['B',currentQuestion.option_b],['C',currentQuestion.option_c],['D',currentQuestion.option_d]].forEach(([letter,text])=>{
+    const button=document.createElement('button');button.className='answer';const badge=document.createElement('span');badge.className='answer-letter';badge.textContent=letter;const content=document.createElement('span');content.textContent=text;button.append(badge,content);button.onclick=()=>checkAnswer(letter,button);answers.appendChild(button)
+  })
+}
+async function checkAnswer(letter,selectedButton){
+  if(answered||!currentQuestion)return;answered=true;const buttons=[...document.querySelectorAll('.answer')];buttons.forEach(b=>b.disabled=true);
+  const {data,error}=await db.rpc('check_test_answer',{selected_question_id:currentQuestion.id,selected_option:letter});
+  if(error){answered=false;buttons.forEach(b=>b.disabled=false);message('feedback','Cevap kontrol edilemedi. Tekrar deneyebilirsin.');console.error(error);return}
+  const result=Array.isArray(data)?data[0]:data;
+  const isCorrect=typeof result==='boolean'?result:result?.is_correct;
+  const correctLetter=String(result?.correct_option||'').trim().toUpperCase();
+  const feedback=document.getElementById('feedback');
+  if(isCorrect===true){selectedButton.classList.add('correct');score+=10;document.getElementById('score').textContent=score;feedback.textContent='Doğru cevap! +10 puan. Harika!';feedback.className='good pop'}
+  else{
+    selectedButton.classList.add('wrong');
+    if(correctLetter){buttons.forEach(button=>{if(button.querySelector('.answer-letter')?.textContent===correctLetter)button.classList.add('reveal')})}
+    feedback.textContent=correctLetter?`Yanlış cevap. Doğru cevap: ${correctLetter}. şık.`:'Yanlış cevap. Bir sonraki soruda şansını dene!';
+    feedback.className='bad'
+  }
+  document.getElementById('nextButton').classList.remove('hidden');document.getElementById('nextButton').textContent=questionIndex===currentTestQuestions.length-1?'Sonuçları Gör →':'Sonraki Soru →';document.getElementById('nextButton').focus({preventScroll:true})
+}
+async function nextQuestion(){
+  if(loadingQuestion)return;loadingQuestion=true;
+  try{
+    if(questionIndex+1>=currentTestQuestions.length){
+      document.getElementById('questionText').textContent='Test tamamlandı!';
+      document.getElementById('answers').replaceChildren();document.getElementById('feedback').textContent='Harika iş çıkardın!';document.getElementById('feedback').className='good';
+      const summary=document.createElement('div');summary.className='notice success';summary.textContent=`Test bitti. ${currentTestQuestions.length} sorudan ${score/10} doğru cevap verdin. Toplam puanın: ${score}.`;
+      document.getElementById('answers').appendChild(summary);document.getElementById('progressFill').style.width='100%';document.getElementById('questionNumber').textContent='Test tamamlandı';document.getElementById('questionTotal').textContent='';document.getElementById('nextButton').classList.add('hidden');return
+    }
+    questionIndex++;await showCurrentQuestion()
+  }finally{loadingQuestion=false}
+}
+function resetGameView(){gameToken++;document.getElementById('quiz').classList.add('hidden');document.getElementById('gameTest').value='';document.getElementById('feedback').textContent='';document.getElementById('answers').replaceChildren();currentTestQuestions=[];currentQuestion=null}
+loadClasses().then(checkSession);
+</script>
+</body>
+</html>
