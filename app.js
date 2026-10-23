@@ -642,12 +642,28 @@ function formatHistoryDate(value) { if (!value) return '—'; const d = new Date
 // --- ADMIN TABS ---
 document.querySelectorAll('.admin-tab').forEach(btn => btn.addEventListener('click', () => {
     const tab = btn.dataset.tab;
-    document.querySelectorAll('[data-admin-tab-panel]').forEach(panel => panel.hidden = panel.dataset.adminTabPanel !== tab);
-    document.querySelectorAll('.admin-tab').forEach(b => {
-        const act = b.dataset.tab === tab; b.classList.toggle('active', act);
-        if(act) { b.style.background = 'white'; b.style.borderColor = 'white'; b.style.color = 'var(--navy)'; }
-        else { b.style.background = 'transparent'; b.style.borderColor = 'transparent'; b.style.color = '#cbd5e1'; }
+    
+    // 1. İlgili panelleri gizle/göster (HTML5 niteliği yerine CSS sınıfını kullanarak)
+    document.querySelectorAll('[data-admin-tab-panel]').forEach(panel => {
+        panel.classList.toggle('hidden', panel.dataset.adminTabPanel !== tab);
     });
+    
+    // 2. Buton tasarımlarını aktifleştir/pasifleştir
+    document.querySelectorAll('.admin-tab').forEach(b => {
+        const act = b.dataset.tab === tab; 
+        b.classList.toggle('active', act);
+        if(act) { 
+            b.style.background = 'white'; 
+            b.style.borderColor = 'white'; 
+            b.style.color = 'var(--navy)'; 
+        } else { 
+            b.style.background = 'transparent'; 
+            b.style.borderColor = 'transparent'; 
+            b.style.color = '#cbd5e1'; 
+        }
+    });
+    
+    // 3. İlgili sekmeye geçildiğinde verileri tazele
     if (tab === 'history') loadSessionHistory();
     if (tab === 'overview') loadLeaderboard();
 }));
