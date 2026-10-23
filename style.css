@@ -135,3 +135,19 @@ button { font-family: var(--font); font-weight: 800; border-radius: 14px; border
     .podium-step { width: 80px; }
     .match-row { grid-template-columns: 1fr; gap: 5px; margin-bottom: 20px; }
 }
+
+/* Header Logo Ayarları */
+.header-logo {
+    max-height: 90px; /* Logonun yüksekliğini buradan büyütebilir veya küçültebilirsiniz */
+    width: auto;
+    max-width: 100%;
+    display: inline-block;
+    vertical-align: middle;
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3)); /* Logoya boyut katan hafif gölge efekti */
+}
+
+@media(max-width: 600px) {
+    .header-logo {
+        max-height: 65px; /* Mobilde logonun çok büyük durmaması için biraz küçültüyoruz */
+    }
+}
