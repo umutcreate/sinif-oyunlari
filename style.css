@@ -36,8 +36,8 @@ h2 { margin: 0 0 20px; font-size: 24px; font-weight: 800; }
 .hidden { display: none !important; }
 
 /* Form Elements */
-input, select { width: 100%; padding: 14px; margin-bottom: 15px; border: 2px solid #e2e8f0; border-radius: 12px; font-family: var(--font); font-weight: 700; font-size: 16px; background: #f8fafc; outline: none; }
-input:focus, select:focus { border-color: var(--blue); }
+input, select, textarea { width: 100%; padding: 14px; margin-bottom: 15px; border: 2px solid #e2e8f0; border-radius: 12px; font-family: var(--font); font-weight: 700; font-size: 16px; background: #f8fafc; outline: none; }
+input:focus, select:focus, textarea:focus { border-color: var(--blue); }
 
 /* Standard Buttons */
 button { font-family: var(--font); font-weight: 800; border-radius: 14px; border: none; cursor: pointer; padding: 14px 24px; font-size: 16px; transition: 0.1s; }
@@ -70,6 +70,7 @@ button { font-family: var(--font); font-weight: 800; border-radius: 14px; border
 .mcq-yellow { background: var(--yellow); box-shadow: 0 5px 0 var(--yellow-dark); }
 .mcq-green { background: var(--green); box-shadow: 0 5px 0 var(--green-dark); }
 .mcq-btn:active { transform: translateY(5px); box-shadow: 0 0 0 transparent; }
+.mcq-btn.selected { box-shadow: 0 0 0 4px var(--navy); transform: scale(0.98); }
 
 /* Answers: Input Group (Fill in blanks) */
 .input-group { display: flex; gap: 15px; }
@@ -91,8 +92,24 @@ button { font-family: var(--font); font-weight: 800; border-radius: 14px; border
 .lb-row { display: flex; justify-content: space-between; padding: 15px 20px; background: #f8fafc; border-radius: 12px; font-weight: 800; }
 .lb-rank { color: #64748b; width: 30px; }
 
+/* Yeni Soru Tipleri (Kelime Sıralama & Eşleştirme) */
+.word-pool { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; justify-content: center; }
+.word-btn { background: #f1f5f9; color: var(--navy); border: 2px solid #cbd5e1; padding: 10px 20px; border-radius: 12px; cursor: pointer; font-weight: 800; font-size: 18px; box-shadow: 0 4px 0 #cbd5e1; }
+.word-btn:hover { background: #e2e8f0; transform: translateY(-2px); box-shadow: 0 6px 0 #cbd5e1; }
+.word-btn:active { transform: translateY(4px); box-shadow: 0 0 0 transparent; }
+.word-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.sentence-box { min-height: 80px; background: white; border: 3px dashed #cbd5e1; border-radius: 16px; padding: 15px; margin-bottom: 20px; font-size: 20px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; transition: 0.2s; }
+.sentence-word { background: var(--blue); color: white; padding: 8px 16px; border-radius: 10px; font-weight: 800; cursor: pointer; box-shadow: 0 3px 0 var(--blue-dark); animation: popIn 0.2s ease-out; }
+@keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+.match-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; align-items: center; }
+.match-left { background: #f8fafc; padding: 15px; border-radius: 12px; font-weight: 800; border: 2px solid #e2e8f0; text-align: center; font-size: 18px; }
+.match-row select { margin-bottom: 0; cursor: pointer; }
+
 @media(max-width: 600px) {
     .answers-grid { grid-template-columns: 1fr; }
     .input-group { flex-direction: column; }
     .podium-step { width: 80px; }
+    .match-row { grid-template-columns: 1fr; gap: 5px; margin-bottom: 20px; }
 }
