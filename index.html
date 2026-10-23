@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>İngilizce Turnuvası</title>
-    <!-- Google Fonts: Eğlenceli ve okunaklı font -->
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -37,6 +36,7 @@
                     </div>
                     <button class="primary" onclick="startGame()">Başlat</button>
                 </div>
+                <p id="gameSetupMessage" class="small mt-3" style="color:var(--muted)"></p>
             </div>
 
             <div id="leaderboardCard" class="card">
@@ -60,19 +60,19 @@
                     </div>
                 </div>
                 
-                <p id="questionMeta" class="question-meta">9 B · Soru 1 / 6</p>
+                <p id="questionMeta" class="question-meta">Sınıf · Soru</p>
                 <h2 id="questionText" class="question-title"></h2>
                 
                 <div id="answers"></div>
-                <div id="feedback" aria-live="polite"></div>
+                <div id="feedback" aria-live="polite" style="margin-top:20px; font-weight:800; font-size:18px;"></div>
                 
-                <div class="actions">
-                    <button id="nextButton" class="primary hidden" onclick="nextQuestion()">Sonraki Soru ➔</button>
+                <div class="actions mt-3">
+                    <button id="nextButton" class="primary hidden w-full" onclick="nextQuestion()">Sonraki Soru ➔</button>
                 </div>
             </div>
         </section>
 
-        <!-- ÖĞRETMEN PANELİ BÖLÜMÜ (Özetlenmiş İskelet) -->
+        <!-- ÖĞRETMEN PANELİ BÖLÜMÜ -->
         <section id="teacher" class="hidden">
             <div id="loginCard" class="card">
                 <h2>Öğretmen Girişi</h2>
@@ -81,37 +81,168 @@
                     <input id="password" type="password" placeholder="Şifre" required>
                     <button class="primary w-full" type="submit">Giriş Yap</button>
                 </form>
-                <p id="loginMessage"></p>
+                <p id="loginMessage" class="mt-3"></p>
             </div>
 
             <div id="adminPanel" class="hidden">
-                <div class="admin-hero card">
+                <div class="admin-hero card" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; background:var(--navy); color:white;">
                     <h2>Öğretmen Paneli</h2>
                     <button class="danger" onclick="logout()">Çıkış Yap</button>
                 </div>
                 
-                <!-- Öğretmen Paneli İçerikleri (Eski HTML'deki aynı ID'lerle korunarak eklendi) -->
-                <div class="admin-tabs">
-                    <button class="admin-tab active" data-tab="overview">Oturum Yönetimi</button>
-                    <!-- Diğer sekmeler burada yer alır -->
+                <div class="admin-tabs" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
+                    <button class="admin-tab active nav-button" data-tab="overview">Oturum Yönetimi</button>
+                    <button class="admin-tab nav-button" data-tab="history">Geçmiş</button>
+                    <button class="admin-tab nav-button" data-tab="questions">Soru Havuzu</button>
+                    <button class="admin-tab nav-button" data-tab="tests">Testler</button>
+                    <button class="admin-tab nav-button" data-tab="json">JSON Araçları</button>
                 </div>
                 
+                <!-- 1. GENEL BAKIŞ (OVERVIEW) -->
                 <div class="card" data-admin-tab-panel="overview">
                     <h2>Puanlı Oturum Başlat</h2>
-                    <div class="grid2">
+                    <p style="color:var(--muted); margin-bottom:15px;">Sınıf ve testi seçip puanlı başlat. Test akıllı tahtada açılır.</p>
+                    <div class="grid2" style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
                         <select id="scoreSessionClass"><option value="">Sınıf Seç</option></select>
                         <select id="scoreSessionTest"><option value="">Test Seç</option></select>
                     </div>
-                    <div class="actions mt-3">
+                    <div class="actions mt-3" style="display:flex; gap:10px;">
                         <button class="primary" id="startScoreSessionButton" onclick="startScoreSession()">Tahtada Başlat</button>
                         <button class="danger" id="closeScoreSessionButton" onclick="closeScoreSession()" disabled>Oturumu Kapat</button>
                     </div>
-                    <p id="teacherSessionStatus" class="mt-3">Aktif oturum yok.</p>
+                    <div id="teacherSessionMessage" style="margin-top:15px; color:var(--blue-dark); font-weight:bold;" class="hidden"></div>
+                    <p id="teacherSessionStatus" class="mt-3" style="color:var(--muted)">Aktif oturum yok.</p>
                 </div>
                 
                 <div class="card" data-admin-tab-panel="overview">
-                    <h2 class="title-with-icon">🏅 Sınıf Sıralaması</h2>
+                    <div class="section-heading">
+                        <h2 class="title-with-icon">🏅 Sınıf Sıralaması</h2>
+                        <button class="secondary btn-sm" onclick="loadLeaderboard()">↻ Yenile</button>
+                    </div>
                     <div id="teacherLeaderboard"></div>
+                </div>
+
+                <!-- 2. GEÇMİŞ (HISTORY) -->
+                <div class="card hidden" data-admin-tab-panel="history">
+                    <div class="section-heading">
+                        <h2>Geçmiş Puanlı Oturumlar</h2>
+                        <div style="display:flex; gap:10px;">
+                            <select id="historyFilter">
+                                <option value="all">Tüm oturumlar</option>
+                                <option value="active">Aktif oturumlar</option>
+                                <option value="closed">Kapatılmış oturumlar</option>
+                            </select>
+                            <button class="secondary" onclick="loadSessionHistory()">Yenile</button>
+                        </div>
+                    </div>
+                    <div id="sessionHistory" style="display:grid; gap:15px; margin-top:20px;"></div>
+                </div>
+
+                <!-- 3. SORU HAVUZU (QUESTIONS) -->
+                <div class="card hidden" data-admin-tab-panel="questions">
+                    <h2 id="formTitle">Çoktan seçmeli soru ekle</h2>
+                    <form id="questionForm">
+                        <input type="hidden" id="questionId">
+                        <textarea id="questionInput" required placeholder="Soru metni... (Örn. Choose the correct answer.)" style="width:100%; min-height:80px; padding:15px; margin-bottom:15px; border-radius:12px; border:2px solid #e2e8f0; font-family:inherit;"></textarea>
+                        <div class="grid2" style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+                            <input id="optionA" placeholder="A seçeneği" required>
+                            <input id="optionB" placeholder="B seçeneği" required>
+                            <input id="optionC" placeholder="C seçeneği" required>
+                            <input id="optionD" placeholder="D seçeneği" required>
+                        </div>
+                        <label style="display:block; margin:10px 0 5px; font-weight:bold;">Doğru Cevap:</label>
+                        <select id="correctAnswer">
+                            <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option>
+                        </select>
+                        <div class="actions mt-3" style="display:flex; gap:10px;">
+                            <button class="primary" type="submit">Soruyu Kaydet</button>
+                            <button class="secondary" type="button" onclick="resetQuestionForm()">Temizle</button>
+                        </div>
+                    </form>
+                    <p id="saveMessage" class="mt-3"></p>
+                </div>
+
+                <div class="card hidden" data-admin-tab-panel="questions">
+                    <div class="section-heading">
+                        <h2>Soru Havuzum</h2>
+                        <span id="questionPoolCount" style="background:#e2e8f0; padding:5px 10px; border-radius:10px; font-weight:bold;">0 soru</span>
+                    </div>
+                    <div id="questionList" style="margin-top:20px; display:grid; gap:15px;"></div>
+                </div>
+
+                <!-- 4. TEST OLUŞTURMA (TESTS) -->
+                <div class="card hidden" id="testEditorCard" data-admin-tab-panel="tests">
+                    <h2 id="testFormTitle">Yeni test oluştur</h2>
+                    <form id="testForm">
+                        <input type="hidden" id="testId">
+                        <div class="grid2" style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:20px;">
+                            <input id="testName" required placeholder="Test adı">
+                            <select id="testLevel">
+                                <option>A1</option><option>A2</option><option>B1</option><option>B2</option><option>C1</option><option>C2</option>
+                            </select>
+                            <input id="testTopic" placeholder="Konu (Örn. Present Simple)">
+                            <select id="testLanguage">
+                                <option value="en">English</option><option value="tr">Türkçe</option><option value="mixed">İngilizce + Türkçe</option>
+                            </select>
+                            <input id="testDuration" type="number" min="1" value="15" placeholder="Süre (dk)">
+                            <input id="testDescription" placeholder="Açıklama">
+                        </div>
+                        
+                        <h3 style="margin:20px 0 10px;">1. Soru Havuzundan Seç</h3>
+                        <div id="testQuestionPicker" style="max-height:250px; overflow-y:auto; border:2px solid #e2e8f0; border-radius:12px; padding:15px; background:#f8fafc;"></div>
+                        
+                        <h3 style="margin:20px 0 10px;">2. Teste Özel Yeni Soru Ekle</h3>
+                        <div style="border:2px solid #e2e8f0; padding:20px; border-radius:12px; background:#f8fafc;">
+                            <select id="newQuestionType" style="margin-bottom:15px;">
+                                <option value="multiple_choice">Çoktan seçmeli</option>
+                                <option value="true_false">Doğru / Yanlış</option>
+                                <option value="fill_in_the_blanks">Boşluk doldurma</option>
+                                <option value="word_order">Kelime sıralama</option>
+                                <option value="matching">Eşleştirme</option>
+                                <option value="multiple_select">Birden fazla doğru seçeneği seç</option>
+                                <option value="sentence_completion">Cümle tamamlama</option>
+                                <option value="short_answer">Kısa cevap</option>
+                                <option value="translation">Çeviri</option>
+                                <option value="error_correction">Hata düzeltme</option>
+                            </select>
+                            <div id="newQuestionFields"></div>
+                            <div class="actions mt-3" style="display:flex; gap:10px;">
+                                <button class="secondary" type="button" onclick="addQuestionToDraft()">Taslağa Ekle</button>
+                                <button class="secondary" type="button" onclick="clearQuestionDraftForm()">Temizle</button>
+                            </div>
+                        </div>
+
+                        <h3 style="margin:20px 0 10px;">Testteki Yeni (Taslak) Sorular</h3>
+                        <div id="draftQuestionList" style="max-height:200px; overflow-y:auto; border:2px solid #e2e8f0; border-radius:12px; padding:15px; margin-bottom:20px;"></div>
+                        
+                        <div class="actions" style="display:flex; gap:10px;">
+                            <button class="primary" type="submit">Testi Kaydet</button>
+                            <button class="secondary" type="button" onclick="resetTestForm()">Formu Temizle</button>
+                        </div>
+                    </form>
+                    <p id="testSaveMessage" class="mt-3"></p>
+                </div>
+
+                <div class="card hidden" data-admin-tab-panel="tests">
+                    <h2>Testlerim ve Sınıf Atamaları</h2>
+                    <div id="testList" style="margin-top:20px; display:grid; gap:15px;"></div>
+                </div>
+
+                <!-- 5. JSON ARAÇLARI (JSON) -->
+                <div class="card hidden" data-admin-tab-panel="json">
+                    <h2>Testi İçe / Dışa Aktar</h2>
+                    <div class="actions" style="display:flex; gap:10px; margin-bottom:20px;">
+                        <button class="secondary" onclick="downloadJsonTemplate()">Örnek JSON İndir</button>
+                        <button class="secondary" onclick="exportSelectedTest()">Düzenlenen Testi İndir</button>
+                    </div>
+                    <label style="display:block; font-weight:bold; margin-bottom:5px;">JSON Dosyası Seç</label>
+                    <input id="importFile" type="file" accept=".json,application/json" style="padding:10px;">
+                    <button class="primary mt-3" onclick="importJsonFile()">Kontrol Et ve İçe Aktar</button>
+                    <p id="jsonMessage" class="mt-3" style="color:var(--blue-dark); font-weight:bold;"></p>
+                    
+                    <label style="display:block; font-weight:bold; margin:20px 0 5px;">JSON Metni Önizleme / Düzenleme</label>
+                    <textarea id="jsonPreview" style="width:100%; min-height:250px; font-family:monospace; padding:15px; border-radius:12px; border:2px solid #e2e8f0;"></textarea>
+                    <button class="secondary mt-3" onclick="importJsonText()">Metin Alanından İçe Aktar</button>
                 </div>
             </div>
         </section>
