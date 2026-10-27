@@ -333,7 +333,6 @@ function showCurrentQuestion() {
     const type = currentQuestion.question_type, data = currentQuestion.question_data || {};
     let qText = data.question || '';
     
-    // Boşluk doldurma (Inline Input) kontrolü
     const hasBlank = qText.includes('___') && !['multiple_choice', 'multiple_select', 'true_false', 'matching', 'word_order'].includes(type);
     
     const qtEl = $('questionText');
@@ -356,7 +355,6 @@ function showCurrentQuestion() {
     
     const box = $('answers'); if (!box) return; box.replaceChildren();
 
-    // 1. BOŞLUK DOLDURMA (Cümle İçi + Enter)
     if (hasBlank) {
         box.className = '';
         const submit = document.createElement('button'); submit.className = 'primary w-full mt-3'; submit.textContent = 'Kontrol Et';
@@ -368,7 +366,6 @@ function showCurrentQuestion() {
         submit.onclick = () => submitAnswer(inlineInp ? inlineInp.value.trim() : '', submit);
         box.appendChild(submit);
     }
-    // 2. ÇOKTAN SEÇMELİ
     else if (type === 'multiple_choice') {
         box.className = 'answers-grid'; const styles = [{c:'mcq-blue',s:'▲'}, {c:'mcq-pink',s:'◆'}, {c:'mcq-yellow',s:'●'}, {c:'mcq-green',s:'■'}];
         (data.options || []).forEach((o, i) => {
@@ -377,7 +374,6 @@ function showCurrentQuestion() {
             btn.onclick = () => submitAnswer(o.id, btn); box.appendChild(btn);
         });
     } 
-    // 3. ÇOKLU SEÇİM
     else if (type === 'multiple_select') {
         box.className = 'answers-grid'; const styles = [{c:'mcq-blue',s:'▲'}, {c:'mcq-pink',s:'◆'}, {c:'mcq-yellow',s:'●'}, {c:'mcq-green',s:'■'}];
         (data.options || []).forEach((o, i) => {
@@ -389,14 +385,12 @@ function showCurrentQuestion() {
         const submit = document.createElement('button'); submit.className = 'primary w-full mt-3'; submit.style.gridColumn = '1 / -1'; submit.textContent = 'Kontrol Et';
         submit.onclick = () => submitAnswer([...box.querySelectorAll('button.selected')].map(b => b.dataset.val), submit); box.appendChild(submit);
     } 
-    // 4. DOĞRU / YANLIŞ
     else if (type === 'true_false') {
         box.className = 'answers-grid';
         const tBtn = document.createElement('button'); tBtn.className = 'mcq-btn mcq-blue'; tBtn.innerHTML = `<div class="shape">✓</div> <span>Doğru</span>`; tBtn.onclick = () => submitAnswer(true, tBtn);
         const fBtn = document.createElement('button'); fBtn.className = 'mcq-btn mcq-pink'; fBtn.innerHTML = `<div class="shape">✕</div> <span>Yanlış</span>`; fBtn.onclick = () => submitAnswer(false, fBtn);
         box.append(tBtn, fBtn);
     } 
-    // 5. KELİME SIRALAMA
     else if (type === 'word_order') {
         box.className = ''; const words = [...(data.words || [])].sort(() => Math.random() - 0.5); const chosen = [];
         const sentenceBox = document.createElement('div'); sentenceBox.className = 'sentence-box'; sentenceBox.textContent = 'Kelimeleri sırasıyla seç...'; sentenceBox.style.color = '#94a3b8';
@@ -415,7 +409,6 @@ function showCurrentQuestion() {
         const submit = document.createElement('button'); submit.className = 'primary w-full'; submit.textContent = 'Cümleyi Kontrol Et';
         submit.onclick = () => submitAnswer(chosen.map(x=>x.w).join(' '), submit); box.append(sentenceBox, wordPool, submit);
     } 
-    // 6. EŞLEŞTİRME (DOKUN-BİRLEŞTİR)
     else if (type === 'matching') {
         box.className = '';
         const matchContainer = document.createElement('div'); matchContainer.className = 'match-container';
@@ -462,7 +455,6 @@ function showCurrentQuestion() {
         submit.onclick = () => { if (leftItems.length > 0) return alert('Lütfen tüm kelimeleri eşleştirin.'); submitAnswer(matches, submit); };
         box.append(matchContainer, pairedList, submit);
     } 
-    // 7. DİĞER (Klasik Input - Enter Tuşu Destekli)
     else {
         box.className = 'input-group';
         const inp = document.createElement('input'); inp.type = 'text'; inp.placeholder = 'Cevabını buraya yaz...';
@@ -477,9 +469,24 @@ async function submitAnswer(answer, button) {
     if (answered || answer === null || answer === '' || (Array.isArray(answer) && !answer.length)) return;
     answered = true;
     
+    // --- FORMAT DÜZELTMELERİ (SQL İÇİN) ---
+    let formattedAnswer = answer;
+    if (currentQuestion.question_type === 'matching' && Array.isArray(answer)) {
+        formattedAnswer = answer.sort((a, b) => a.left.localeCompare(b.left));
+    }
+    if (currentQuestion.question_type === 'word_order' && typeof answer === 'string') {
+        let cleanAnswer = answer.trim();
+        const storedAnswer = currentQuestion.correct_answer || '';
+        if (typeof storedAnswer === 'string' && storedAnswer.endsWith('.') && !cleanAnswer.endsWith('.')) {
+            cleanAnswer += '.';
+        }
+        formattedAnswer = cleanAnswer;
+    }
+    // ----------------------------------------
+    
     let data, error;
-    if (currentScoreAttemptId) { ({ data, error } = await db.rpc('submit_class_score_answer', { p_attempt_id: currentScoreAttemptId, p_test_question_id: currentQuestion.id, p_submitted_answer: answer })); } 
-    else { ({ data, error } = await db.rpc('check_assigned_test_answer', { selected_test_id: currentGameTestId, selected_class_id: currentGameClassId, selected_test_question_id: currentQuestion.id, submitted_answer: answer })); }
+    if (currentScoreAttemptId) { ({ data, error } = await db.rpc('submit_class_score_answer', { p_attempt_id: currentScoreAttemptId, p_test_question_id: currentQuestion.id, p_submitted_answer: formattedAnswer })); } 
+    else { ({ data, error } = await db.rpc('check_assigned_test_answer', { selected_test_id: currentGameTestId, selected_class_id: currentGameClassId, selected_test_question_id: currentQuestion.id, submitted_answer: formattedAnswer })); }
 
     if (error) { answered = false; message('feedback', error.code === '23505' ? 'Zaten cevaplanmış.' : 'Hata, tekrar dene.'); return; }
 
@@ -488,15 +495,15 @@ async function submitAnswer(answer, button) {
     const fb = $('feedback');
 
     if (isCorrect) {
-        playSound('correct'); button.classList.add('pop-anim');
+        playSound('correct'); if (button && button.classList) button.classList.add('pop-anim');
         const earned = currentScoreAttemptId ? Number(result.points_awarded || 0) : Number(currentQuestion.points || 10);
         score += earned; streak++;
         message('score', score); message('streakCount', streak);
         if (fb) { fb.textContent = `Doğru cevap! +${earned} puan.`; fb.style.color = 'var(--green-dark)'; }
         if (streak > 0 && streak % 3 === 0 && window.confetti) { confetti({ particleCount: 60, spread: 70, origin: { y: 0.8 }, zIndex: 9999 }); }
     } else {
-        playSound('wrong'); button.classList.add('shake-anim');
-        streak = 0; message('streakCount', streak); button.style.opacity = '0.5';
+        playSound('wrong'); if (button && button.classList) button.classList.add('shake-anim');
+        streak = 0; message('streakCount', streak); if (button) button.style.opacity = '0.5';
         if (fb) { fb.textContent = 'Yanlış cevap. ' + (result?.correct_answer ? 'Doğru: ' + formatAnswer(result.correct_answer) : ''); fb.style.color = '#dc2626'; }
     }
     if (result?.explanation && fb) fb.textContent += ' ' + result.explanation;
@@ -516,10 +523,8 @@ async function nextQuestion() {
     try {
         if (questionIndex + 1 >= currentTestQuestions.length) {
             if (currentScoreAttemptId) { await db.rpc('finish_class_score_attempt', { p_attempt_id: currentScoreAttemptId }); currentScoreAttemptId = null; await loadLeaderboard(); }
-            
             playSound('finish');
             if (window.confetti) { confetti({ particleCount: 250, spread: 100, origin: { y: 0.5 }, zIndex: 9999 }); }
-
             message('questionText', 'Test tamamlandı!'); if($('answers')) $('answers').replaceChildren();
             const fb = $('feedback'); if(fb) { fb.textContent = `Tebrikler! Toplam: ${score} Puan`; fb.style.color = 'var(--green-dark)'; }
             $('nextButton')?.classList.add('hidden');
@@ -587,13 +592,24 @@ function formatHistoryDate(value) { if (!value) return '—'; const d = new Date
 // --- ADMIN TABS ---
 document.querySelectorAll('.admin-tab').forEach(btn => btn.addEventListener('click', () => {
     const tab = btn.dataset.tab;
-    document.querySelectorAll('[data-admin-tab-panel]').forEach(panel => { panel.classList.toggle('hidden', panel.dataset.adminTabPanel !== tab); });
-    document.querySelectorAll('.admin-tab').forEach(b => {
-        const act = b.dataset.tab === tab; b.classList.toggle('active', act);
-        if(act) { b.style.background = 'white'; b.style.borderColor = 'white'; b.style.color = 'var(--navy)'; }
-        else { b.style.background = 'transparent'; b.style.borderColor = 'transparent'; b.style.color = '#cbd5e1'; }
+    document.querySelectorAll('[data-admin-tab-panel]').forEach(panel => {
+        panel.classList.toggle('hidden', panel.dataset.adminTabPanel !== tab);
     });
-    if (tab === 'history') loadSessionHistory(); if (tab === 'overview') loadLeaderboard();
+    document.querySelectorAll('.admin-tab').forEach(b => {
+        const act = b.dataset.tab === tab; 
+        b.classList.toggle('active', act);
+        if(act) { 
+            b.style.background = 'white'; 
+            b.style.borderColor = 'white'; 
+            b.style.color = 'var(--navy)'; 
+        } else { 
+            b.style.background = 'transparent'; 
+            b.style.borderColor = 'transparent'; 
+            b.style.color = '#cbd5e1'; 
+        }
+    });
+    if (tab === 'history') loadSessionHistory();
+    if (tab === 'overview') loadLeaderboard();
 }));
 $('historyFilter')?.addEventListener('change', loadSessionHistory);
 
