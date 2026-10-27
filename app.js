@@ -488,18 +488,32 @@ async function submitAnswer(answer, button) {
     if (answered || answer === null || answer === '' || (Array.isArray(answer) && !answer.length)) return;
     answered = true;
     
-    // --- FORMAT DÜZELTMELERİ (SQL İÇİN) ---
+    // --- FORMAT DÜZELTMELERİ (SQL İÇİN GÜVENLİK KATMANI) ---
     let formattedAnswer = answer;
+    
+    // 1. Eşleştirme (Matching)
     if (currentQuestion.question_type === 'matching' && Array.isArray(answer)) {
-        formattedAnswer = answer.sort((a, b) => a.left.localeCompare(b.left));
+        const originalPairs = currentQuestion.correct_answer || currentQuestion.question_data?.pairs || [];
+        formattedAnswer = [];
+        originalPairs.forEach(orig => {
+            const userMatch = answer.find(a => a.left === orig.left);
+            if (userMatch) formattedAnswer.push({ left: orig.left, right: userMatch.right });
+        });
+        answer.forEach(a => { if (!formattedAnswer.find(f => f.left === a.left)) formattedAnswer.push(a); });
     }
+    
+    // 2. Kelime Sıralama (Word Order) Noktalama Düzeltmesi
     if (currentQuestion.question_type === 'word_order' && typeof answer === 'string') {
-        let cleanAnswer = answer.trim();
-        const storedAnswer = currentQuestion.correct_answer || '';
-        if (typeof storedAnswer === 'string' && storedAnswer.endsWith('.') && !cleanAnswer.endsWith('.')) {
-            cleanAnswer += '.';
+        const stored = currentQuestion.correct_answer || '';
+        const cleanRegex = /[^\p{L}\p{N}\s]/gu; 
+        const cleanSub = answer.replace(cleanRegex, '').replace(/\s+/g, ' ').trim().toLowerCase();
+        const cleanStored = typeof stored === 'string' ? stored.replace(cleanRegex, '').replace(/\s+/g, ' ').trim().toLowerCase() : '';
+        
+        if (cleanSub === cleanStored) {
+            formattedAnswer = stored; // Sadece kelimeler doğruysa SQL'in beklediği noktalı halini gönder
+        } else {
+            formattedAnswer = answer.trim();
         }
-        formattedAnswer = cleanAnswer;
     }
     // ----------------------------------------
     
@@ -561,7 +575,6 @@ function populateScoreSessionSelectors() {
     if (ts) { ts.replaceChildren(new Option('Test seç', '')); tests.forEach(t => ts.add(new Option(t.name, t.id))); }
     if (es) { es.replaceChildren(new Option('Dışa aktarılacak testi seç...', '')); tests.forEach(t => es.add(new Option(t.name, t.id))); }
 }
-
 async function startScoreSession() {
     const cid = Number($('scoreSessionClass')?.value), tid = Number($('scoreSessionTest')?.value);
     if (!cid || !tid) return message('teacherSessionStatus', 'Sınıf ve test seçin.');
@@ -577,13 +590,11 @@ async function startScoreSession() {
         showPage('game'); await loadGame(cid, tid, attempt.attempt_id);
     } finally { if($('startScoreSessionButton')) $('startScoreSessionButton').disabled = false; }
 }
-
 async function closeScoreSession() {
     if (!activeScoreSessionId) return; await db.rpc('close_class_score_session', { p_session_id: activeScoreSessionId });
     activeScoreSessionId = null; if($('closeScoreSessionButton')) $('closeScoreSessionButton').disabled = true; $('teacherSessionMessage')?.classList.add('hidden');
     message('teacherSessionStatus', 'Oturum kapatıldı.'); await loadLeaderboard();
 }
-
 async function loadLeaderboard() {
     const { data } = await db.rpc('get_class_leaderboard'); const boxes = [$('leaderboard'), $('teacherLeaderboard')].filter(Boolean); if (boxes.length === 0) return;
     boxes.forEach(box => {
@@ -601,7 +612,6 @@ async function loadLeaderboard() {
         }
     });
 }
-
 async function loadSessionHistory() {
     const box = $('sessionHistory'); if (!box) return; box.replaceChildren(); const filter = $('historyFilter')?.value || 'all';
     const { data } = await db.rpc('get_class_score_session_history'); const rows = (data || []).filter(r => filter === 'all' || (filter === 'active' ? r.is_active : !r.is_active));
@@ -611,7 +621,6 @@ async function loadSessionHistory() {
         d.innerHTML = `<div><strong style="font-size:18px;">${r.class_name} · ${r.test_name}</strong><br><small style="color:#64748b">${formatHistoryDate(r.created_at)} | Tamamlanan: ${r.completed_attempts}</small><br><span style="background:${r.is_active ? '#dcfce7' : '#e2e8f0'}; color:${r.is_active ? '#166534' : '#475569'}; padding:4px 8px; border-radius:8px; font-size:12px; font-weight:bold; display:inline-block; margin-top:8px;">${r.is_active ? 'Aktif' : 'Kapatıldı'}</span></div><div style="text-align:right;"><div style="font-size:24px; font-weight:900; color:var(--navy);">${r.total_points}</div><small style="color:#64748b">Kazanılan Puan</small></div>`; box.appendChild(d);
     });
 }
-
 function formatHistoryDate(value) { if (!value) return '—'; const d = new Date(value); return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' }); }
 
 // --- ADMIN TABS ---
