@@ -135,9 +135,9 @@ function editQuestion(q) {
     $('optionA').value = q.option_a; $('optionB').value = q.option_b; $('optionC').value = q.option_c; $('optionD').value = q.option_d;
     $('correctAnswer').value = q.correct_answer; $('formTitle').textContent = 'Soruyu düzenle'; $('questionForm').scrollIntoView({ behavior: 'smooth' });
 }
-function resetQuestionForm() { $('questionForm')?.reset(); if($('questionId')) $('questionId').value = ''; message('formTitle', 'Çoktan seçmeli soru ekle'); message('saveMessage', ''); }
+function resetQuestionForm() { $('questionForm')?.reset(); if($('questionId')) $('questionId').value = ''; message('formTitle', 'Soru Ekle / Düzenle'); message('saveMessage', ''); }
 async function deleteQuestion(id) {
-    if (tests.some(t => t.question_ids?.includes(Number(id)))) return alert('Bu soru bir testte kullanılıyor.');
+    if (tests.some(t => t.question_ids?.includes(Number(id)))) return alert('Bu soru bir testte kullanılıyor. Önce ilgili testten kaldır.');
     if (!confirm('Silmek istiyor musun?')) return;
     const { error } = await db.from('questions').delete().eq('id', id);
     if (error) alert(error.message); else { await loadQuestions(); await loadTests(); }
@@ -273,23 +273,42 @@ function toJsonTest(t) {
     });
     return { schema_version: '1.0', test: { title: t.name, description: t.description || '', level: t.level || 'A1', topic: t.topic || '', language: t.language || 'en', duration_minutes: t.duration_minutes || 15, questions: qs } };
 }
-function downloadBlob(filename, text) { const url = URL.createObjectURL(new Blob([text], { type: 'application/json' })), a = document.createElement('a'); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url); }
+function downloadBlob(filename, text) { const url = URL.createObjectURL(new Blob([text], { type: 'application/json' })); const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url); }
 function downloadTest(t) { downloadBlob((t.name || 'test').replace(/[^a-z0-9-_]+/gi, '_') + '.json', JSON.stringify(toJsonTest(t), null, 2)); }
-function exportSelectedTest() { const t = tests.find(x => Number(x.id) === Number($('testId')?.value)); if (t) downloadTest(t); else message('jsonMessage', 'Önce kaydedilmiş bir testi aç.'); }
-function downloadJsonTemplate() {
-    const sample = { schema_version: '1.0', test: { title: 'Örnek Test', questions: [{ id: 'q1', type: 'multiple_choice', question: 'Örnek Soru', options: [{ id: 'A', text: '1' }, { id: 'B', text: '2' }], correct_answer: 'A', points: 10 }] } };
-    if($('jsonPreview')) $('jsonPreview').value = JSON.stringify(sample, null, 2); downloadBlob('ornek-test.json', JSON.stringify(sample, null, 2)); message('jsonMessage', 'Örnek indirildi.');
+function exportSelectedTest() {
+    const selectVal = $('exportTestSelect')?.value;
+    const targetId = selectVal ? Number(selectVal) : Number($('testId')?.value);
+    const t = tests.find(x => Number(x.id) === targetId); 
+    if (t) downloadTest(t); else message('jsonMessage', 'Lütfen indirmek için bir test seçin.'); 
 }
-function validateJson(obj) { const t = obj?.test; if (!t || !t.title || !Array.isArray(t.questions) || !t.questions.length) throw Error('JSON geçersiz.'); return t; }
-function importJsonFile() { const f = $('importFile')?.files?.[0]; if (!f) return message('jsonMessage', 'Dosya seçin.'); const r = new FileReader(); r.onload = () => { if($('jsonPreview')) $('jsonPreview').value = String(r.result || ''); importJsonText(); }; r.readAsText(f); }
+function downloadJsonTemplate() {
+    const sample = { schema_version: '1.0', test: { title: 'Örnek Test', questions: [{ id: 'q1', type: 'multiple_choice', question: 'She ___ an apple.', options: [{ id: 'A', text: 'eat' }, { id: 'B', text: 'eats' }], correct_answer: 'B', points: 10 }, { id: 'q2', type: 'word_order', question: 'Kelimeleri sıralayın.', words: ['is', 'He', 'playing'], correct_answer: 'He is playing.', points: 10 }] } };
+    if($('jsonPreview')) $('jsonPreview').value = JSON.stringify(sample, null, 2); 
+    downloadBlob('ornek-test.json', JSON.stringify(sample, null, 2)); message('jsonMessage', 'Örnek şablon indirildi.');
+}
+function validateJson(obj) { 
+    const t = obj?.test; 
+    if (!t || !t.title || !Array.isArray(t.questions) || !t.questions.length) throw Error('JSON geçersiz: test.title ve questions dizisi bulunmalı.'); 
+    t.questions.forEach((q, i) => {
+        if (!Object.keys(typeLabels).includes(q.type)) throw Error(`${i+1}. sorunun tipi (${q.type}) sisteme uygun değil.`);
+        if (!q.question) throw Error(`${i+1}. soruda soru metni (question) eksik.`);
+        if (q.correct_answer === undefined) throw Error(`${i+1}. soruda doğru cevap (correct_answer) eksik.`);
+        if (['multiple_choice', 'multiple_select'].includes(q.type) && (!Array.isArray(q.options) || q.options.length < 2)) throw Error(`${i+1}. soruda en az 2 seçenek olmalı.`);
+        if (q.type === 'word_order' && (!Array.isArray(q.words) || !q.words.length)) throw Error(`${i+1}. soruda kelime listesi (words) eksik.`);
+        if (q.type === 'matching' && (!Array.isArray(q.pairs) || q.pairs.length < 2)) throw Error(`${i+1}. soruda en az 2 eşleştirme (pairs) olmalı.`);
+    });
+    return t; 
+}
+function importJsonFile() { const f = $('importFile')?.files?.[0]; if (!f) return message('jsonMessage', 'Lütfen bir dosya seçin.'); const r = new FileReader(); r.onload = () => { if($('jsonPreview')) $('jsonPreview').value = String(r.result || ''); importJsonText(); }; r.readAsText(f); }
 async function importJsonText() {
     try {
         const t = validateJson(JSON.parse($('jsonPreview')?.value || '{}'));
         if($('testId')) $('testId').value = ''; if($('testName')) $('testName').value = t.title; if($('testDescription')) $('testDescription').value = t.description || ''; if($('testLevel')) $('testLevel').value = t.level || 'A1'; if($('testTopic')) $('testTopic').value = t.topic || ''; if($('testDuration')) $('testDuration').value = t.duration_minutes || 15;
         draftQuestions = t.questions.map((q, i) => ({ id: 'import_' + i, type: q.type, question: q.question, question_data: Object.fromEntries(Object.entries(q).filter(([k]) => !['id', 'type', 'correct_answer', 'explanation', 'points'].includes(k))), correct_answer: q.correct_answer, explanation: q.explanation || '', points: Math.max(1, Number(q.points) || 10) }));
-        document.querySelectorAll('input[name="testQuestion"]').forEach(i => i.checked = false); renderDraftQuestions(); message('testFormTitle', 'İçe aktarılan testi kaydet');
-        $('testEditorCard')?.scrollIntoView(); message('jsonMessage', `${t.title} yüklendi. Testi Kaydet'e basın.`);
-    } catch (e) { message('jsonMessage', 'Hata: ' + e.message); }
+        document.querySelectorAll('input[name="testQuestion"]').forEach(i => i.checked = false); renderDraftQuestions(); message('testFormTitle', 'İçe Aktarılan Testi Kaydet');
+        document.querySelector('.admin-tab[data-tab="tests"]')?.click(); $('testEditorCard')?.scrollIntoView({ behavior: 'smooth' }); 
+        setTimeout(() => message('testSaveMessage', `✅ ${t.title} başarıyla yüklendi. Sınıf atamalarını yapıp 'Testi Kaydet'e basın.`), 500); message('jsonMessage', '');
+    } catch (e) { message('jsonMessage', 'HATA: ' + e.message); }
 }
 
 // --- GAME FLOW (SES + KONFETİ + YENİ SORU ARAYÜZLERİ) ---
@@ -537,10 +556,12 @@ function resetGameView() { $('quiz')?.classList.add('hidden'); $('gameSetup')?.c
 
 // --- TEACHER: SESSIONS & LEADERBOARD ---
 function populateScoreSessionSelectors() {
-    const cs = $('scoreSessionClass'), ts = $('scoreSessionTest');
+    const cs = $('scoreSessionClass'), ts = $('scoreSessionTest'), es = $('exportTestSelect');
     if (cs) { cs.replaceChildren(new Option('Sınıf seç', '')); classes.forEach(c => cs.add(new Option(c.class_name, c.class_id))); }
     if (ts) { ts.replaceChildren(new Option('Test seç', '')); tests.forEach(t => ts.add(new Option(t.name, t.id))); }
+    if (es) { es.replaceChildren(new Option('Dışa aktarılacak testi seç...', '')); tests.forEach(t => es.add(new Option(t.name, t.id))); }
 }
+
 async function startScoreSession() {
     const cid = Number($('scoreSessionClass')?.value), tid = Number($('scoreSessionTest')?.value);
     if (!cid || !tid) return message('teacherSessionStatus', 'Sınıf ve test seçin.');
@@ -556,11 +577,13 @@ async function startScoreSession() {
         showPage('game'); await loadGame(cid, tid, attempt.attempt_id);
     } finally { if($('startScoreSessionButton')) $('startScoreSessionButton').disabled = false; }
 }
+
 async function closeScoreSession() {
     if (!activeScoreSessionId) return; await db.rpc('close_class_score_session', { p_session_id: activeScoreSessionId });
     activeScoreSessionId = null; if($('closeScoreSessionButton')) $('closeScoreSessionButton').disabled = true; $('teacherSessionMessage')?.classList.add('hidden');
     message('teacherSessionStatus', 'Oturum kapatıldı.'); await loadLeaderboard();
 }
+
 async function loadLeaderboard() {
     const { data } = await db.rpc('get_class_leaderboard'); const boxes = [$('leaderboard'), $('teacherLeaderboard')].filter(Boolean); if (boxes.length === 0) return;
     boxes.forEach(box => {
@@ -578,6 +601,7 @@ async function loadLeaderboard() {
         }
     });
 }
+
 async function loadSessionHistory() {
     const box = $('sessionHistory'); if (!box) return; box.replaceChildren(); const filter = $('historyFilter')?.value || 'all';
     const { data } = await db.rpc('get_class_score_session_history'); const rows = (data || []).filter(r => filter === 'all' || (filter === 'active' ? r.is_active : !r.is_active));
@@ -587,6 +611,7 @@ async function loadSessionHistory() {
         d.innerHTML = `<div><strong style="font-size:18px;">${r.class_name} · ${r.test_name}</strong><br><small style="color:#64748b">${formatHistoryDate(r.created_at)} | Tamamlanan: ${r.completed_attempts}</small><br><span style="background:${r.is_active ? '#dcfce7' : '#e2e8f0'}; color:${r.is_active ? '#166534' : '#475569'}; padding:4px 8px; border-radius:8px; font-size:12px; font-weight:bold; display:inline-block; margin-top:8px;">${r.is_active ? 'Aktif' : 'Kapatıldı'}</span></div><div style="text-align:right;"><div style="font-size:24px; font-weight:900; color:var(--navy);">${r.total_points}</div><small style="color:#64748b">Kazanılan Puan</small></div>`; box.appendChild(d);
     });
 }
+
 function formatHistoryDate(value) { if (!value) return '—'; const d = new Date(value); return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' }); }
 
 // --- ADMIN TABS ---
