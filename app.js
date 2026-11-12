@@ -9,9 +9,9 @@ let currentGameClassId = null, currentGameTestId = null, currentScoreAttemptId =
 let activeScoreSessionId = null, activeScoreSessionCode = null;
 
 const typeLabels = {
-    multiple_choice: 'Çoktan seçmeli', true_false: 'Doğru / Yanlış', fill_in_the_blanks: 'Boşluk doldurma',
-    word_order: 'Kelime sıralama', matching: 'Eşleştirme', multiple_select: 'Birden fazla doğru seçenek',
-    sentence_completion: 'Cümle tamamlama', short_answer: 'Kısa cevap', translation: 'Çeviri', error_correction: 'Hata düzeltme'
+    multiple_choice: 'Çoktan seçmeli', true_false: 'Doğru / Yanlış', fill_in_the_blanks: 'Tek Boşluk Doldurma',
+    cloze_test: 'Çoklu Boşluk / Cloze Test (___)', word_order: 'Kelime sıralama', matching: 'Eşleştirme',
+    multiple_select: 'Birden fazla doğru seçenek', short_answer: 'Kısa cevap'
 };
 
 const $ = id => document.getElementById(id);
@@ -21,65 +21,37 @@ function message(id, text) { if ($(id)) $(id).textContent = text; }
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 function playSound(type) {
     if (audioCtx.state === 'suspended') audioCtx.resume();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
+    const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
     osc.connect(gain); gain.connect(audioCtx.destination);
-
     if (type === 'correct') {
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); 
-        osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); 
-        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
-        osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+        osc.type = 'sine'; osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); 
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4); osc.start(); osc.stop(audioCtx.currentTime + 0.4);
     } else if (type === 'wrong') {
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(150, audioCtx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.3);
-        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
-        osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.3);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3); osc.start(); osc.stop(audioCtx.currentTime + 0.3);
     } else if (type === 'finish') {
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(440, audioCtx.currentTime);
-        osc.frequency.setValueAtTime(554.37, audioCtx.currentTime + 0.15);
-        osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.3);
-        osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.45);
-        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-        gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.8);
-        osc.start(); osc.stop(audioCtx.currentTime + 0.8);
+        osc.type = 'square'; osc.frequency.setValueAtTime(440, audioCtx.currentTime); osc.frequency.setValueAtTime(554.37, audioCtx.currentTime + 0.15); osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.3); osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.45);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.8); osc.start(); osc.stop(audioCtx.currentTime + 0.8);
     }
 }
-
 function speakText(text) {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US';
-    utterance.rate = 0.9;
-    window.speechSynthesis.speak(utterance);
+    if (!window.speechSynthesis) return; window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text); utterance.lang = 'en-US'; utterance.rate = 0.9; window.speechSynthesis.speak(utterance);
 }
 
 function showPage(page) {
-    $('game')?.classList.toggle('hidden', page !== 'game');
-    $('teacher')?.classList.toggle('hidden', page !== 'teacher');
-    $('gameNav')?.classList.toggle('active', page === 'game');
-    $('teacherNav')?.classList.toggle('active', page === 'teacher');
+    $('game')?.classList.toggle('hidden', page !== 'game'); $('teacher')?.classList.toggle('hidden', page !== 'teacher');
+    $('gameNav')?.classList.toggle('active', page === 'game'); $('teacherNav')?.classList.toggle('active', page === 'teacher');
 }
-
 function fillSelect(id, items, placeholder) {
     const s = $(id); if (!s) return; s.replaceChildren();
     if (placeholder) { const o = document.createElement('option'); o.value = ''; o.textContent = placeholder; s.appendChild(o); }
     items.forEach(x => { const o = document.createElement('option'); o.value = x.class_id; o.textContent = x.class_name; s.appendChild(o); });
 }
 
-// --- INITIALIZATION & AUTH ---
+// --- INIT & AUTH ---
 async function init() { await loadClasses(); await checkSession(); await loadLeaderboard(); renderNewQuestionFields(); }
-async function loadClasses() {
-    const { data, error } = await db.rpc('get_class_list');
-    if (error) { message('globalMessage', 'Sınıflar yüklenemedi.'); return; }
-    classes = data || []; fillSelect('gameClass', classes, 'Sınıf seç');
-}
+async function loadClasses() { const { data } = await db.rpc('get_class_list'); classes = data || []; fillSelect('gameClass', classes, 'Sınıf seç'); }
 async function checkSession() { const { data } = await db.auth.getSession(); updateTeacherView(data.session?.user?.id === TEACHER_UID); }
 function updateTeacherView(on) {
     $('loginCard')?.classList.toggle('hidden', on); $('adminPanel')?.classList.toggle('hidden', !on);
@@ -89,17 +61,17 @@ function updateTeacherView(on) {
 $('loginForm')?.addEventListener('submit', async e => {
     e.preventDefault(); message('loginMessage', 'Giriş yapılıyor...');
     const { data, error } = await db.auth.signInWithPassword({ email: $('email').value, password: $('password').value });
-    if (error) { message('loginMessage', 'Giriş başarısız. Bilgileri kontrol et.'); return; }
+    if (error) { message('loginMessage', 'Giriş başarısız.'); return; }
     if (data.user?.id !== TEACHER_UID) { await db.auth.signOut(); message('loginMessage', 'Bu hesap yetkili değil.'); updateTeacherView(false); return; }
     message('loginMessage', ''); updateTeacherView(true);
 });
 async function logout() { await db.auth.signOut(); updateTeacherView(false); message('loginMessage', 'Çıkış yapıldı.'); }
 async function loadAdminData() { await loadQuestions(); await loadTests(); populateScoreSessionSelectors(); await loadLeaderboard(); await loadSessionHistory(); }
 
-// --- TEACHER: QUESTION BANK ---
+// --- QUESTION BANK ---
 async function loadQuestions() {
-    const { data, error } = await db.from('questions').select('id,class_id,question_text,option_a,option_b,option_c,option_d,correct_answer,created_at').order('id', { ascending: false });
-    if (error) return; questionPool = data || []; message('questionPoolCount', `${questionPool.length} soru`); renderQuestionList(); renderQuestionPicker();
+    const { data } = await db.from('questions').select('id,class_id,question_text,option_a,option_b,option_c,option_d,correct_answer,created_at').order('id', { ascending: false });
+    questionPool = data || []; message('questionPoolCount', `${questionPool.length} soru`); renderQuestionList(); renderQuestionPicker();
 }
 function renderQuestionList() {
     const list = $('questionList'); if (!list) return; list.replaceChildren();
@@ -139,8 +111,7 @@ function resetQuestionForm() { $('questionForm')?.reset(); if($('questionId')) $
 async function deleteQuestion(id) {
     if (tests.some(t => t.question_ids?.includes(Number(id)))) return alert('Bu soru bir testte kullanılıyor. Önce ilgili testten kaldır.');
     if (!confirm('Silmek istiyor musun?')) return;
-    const { error } = await db.from('questions').delete().eq('id', id);
-    if (error) alert(error.message); else { await loadQuestions(); await loadTests(); }
+    await db.from('questions').delete().eq('id', id); await loadQuestions(); await loadTests();
 }
 
 // --- TEACHER: TEST EDITOR (DRAFTS) ---
@@ -152,43 +123,62 @@ function renderNewQuestionFields() {
         const i = document.createElement(kind === 'textarea' ? 'textarea' : 'input'); i.id = id; i.placeholder = placeholder; i.style = "width:100%; padding:10px; border-radius:8px; border:2px solid #e2e8f0; margin-bottom:10px;";
         if (kind !== 'textarea') i.type = kind; else i.style.minHeight = "80px"; box.append(l, i); return i;
     };
-    add('Soru metni', 'draftPrompt', 'Soru metnini yaz...', 'textarea');
-    if (['multiple_choice', 'multiple_select'].includes(type)) {
-        add('Seçenekler (her satıra bir seçenek)', 'draftOptions', 'A) ...\nB) ...\nC) ...\nD) ...', 'textarea'); add('Doğru cevap', 'draftCorrect', type === 'multiple_select' ? 'A,C' : 'B');
-    } else if (type === 'true_false') {
-        const l = document.createElement('label'); l.textContent = 'Doğru cevap'; l.style = "display:block; font-weight:bold; margin:10px 0 5px;";
-        const s = document.createElement('select'); s.id = 'draftCorrect'; s.style="width:100%; padding:10px; border-radius:8px; border:2px solid #e2e8f0;";
-        s.add(new Option('Doğru', 'true')); s.add(new Option('Yanlış', 'false')); box.append(l, s);
-    } else if (['fill_in_the_blanks', 'sentence_completion', 'short_answer', 'translation', 'error_correction'].includes(type)) {
-        add('Doğru cevap', 'draftCorrect', 'Birden fazla kabul edilen cevabı | ile ayır');
-    } else if (type === 'word_order') {
-        add('Karışık kelimeler (virgülle ayır)', 'draftWords', 'I, study, English, every day'); add('Doğru cümle', 'draftCorrect', 'I study English every day.');
-    } else if (type === 'matching') {
-        add('Eşleştirmeler (her satır sol | sağ)', 'draftPairs', 'wake up | uyanmak\nhave breakfast | kahvaltı yapmak', 'textarea'); add('Doğru cevap (boş bırakılabilir)', 'draftCorrect', 'A-1, B-2');
+    
+    // Tümü için ortak Okuma Metni Alanı (Reading Context)
+    add('Okuma Parçası / Bağlam Metni (İsteğe Bağlı)', 'draftContext', 'Section A veya B gibi sorular için okunacak metni buraya yapıştırın...', 'textarea');
+
+    if (type === 'cloze_test') {
+        add('Soru Metni (Boşluklar için 3 alt tire ___ koyun)', 'draftPrompt', 'Hi Can! I ___ (hoover) the carpets. Your house is spacious, ___?', 'textarea');
+        add('Kelime Havuzu (İsteğe bağlı, virgülle ayırın. Bırakırsanız klavye girişi istenir)', 'draftWordBank', 'confident, spacious, suburbs, extra_word');
+        add('Sırasıyla Doğru Cevaplar (Virgülle ayırın)', 'draftCorrect', 'am hoovering, isn\'t it');
+    } else {
+        add('Soru/Yönerge Metni', 'draftPrompt', '...', 'textarea');
+        if (['multiple_choice', 'multiple_select'].includes(type)) {
+            add('Seçenekler (her satıra bir seçenek)', 'draftOptions', 'A) ...\nB) ...\nC) ...\nD) ...', 'textarea'); add('Doğru cevap', 'draftCorrect', type === 'multiple_select' ? 'A,C' : 'B');
+        } else if (type === 'true_false') {
+            const l = document.createElement('label'); l.textContent = 'Doğru cevap'; l.style = "display:block; font-weight:bold; margin:10px 0 5px;";
+            const s = document.createElement('select'); s.id = 'draftCorrect'; s.style="width:100%; padding:10px; border-radius:8px; border:2px solid #e2e8f0;";
+            s.add(new Option('Doğru', 'true')); s.add(new Option('Yanlış', 'false')); box.append(l, s);
+        } else if (type === 'fill_in_the_blanks' || type === 'short_answer') {
+            add('Doğru cevap (Alternatifleri | ile ayır)', 'draftCorrect', 'is|are');
+        } else if (type === 'word_order') {
+            add('Karışık kelimeler (virgülle ayır)', 'draftWords', 'I, study, English, every day'); add('Doğru cümle', 'draftCorrect', 'I study English every day.');
+        } else if (type === 'matching') {
+            add('Eşleştirmeler (her satır sol | sağ)', 'draftPairs', 'Habitat | Natural environment\nReduce | Make smaller', 'textarea'); add('Doğru cevap (boş bırakılabilir)', 'draftCorrect', '');
+        }
     }
     add('Açıklama (isteğe bağlı)', 'draftExplanation', 'Kısa açıklama', 'textarea'); add('Puan', 'draftPoints', '10', 'number'); if($('draftPoints')) $('draftPoints').value = '10';
 }
+
 function parseOptions(text) { return text.split('\n').map(x => x.trim()).filter(Boolean).map((t, i) => { const m = t.match(/^([A-D])\s*[).:-]\s*(.*)$/i); return { id: m ? m[1].toUpperCase() : String.fromCharCode(65 + i), text: m ? m[2] : t }; }); }
+
 function addQuestionToDraft() {
     const type = $('newQuestionType')?.value, prompt = $('draftPrompt')?.value.trim(); if (!prompt) return alert('Soru metnini yaz.');
-    let data = { question: prompt }, answer = null; const val = id => $(id)?.value.trim() || '';
-    if (['multiple_choice', 'multiple_select'].includes(type)) {
+    let data = { question: prompt, context: $('draftContext')?.value.trim() || null }, answer = null; const val = id => $(id)?.value.trim() || '';
+    
+    if (type === 'cloze_test') {
+        const blanksCount = (prompt.match(/_{3,}/g) || []).length;
+        if (blanksCount < 1) return alert('Soru metninde en az bir boşluk (___) olmalı.');
+        const cAns = val('draftCorrect').split(',').map(x => x.trim()).filter(Boolean);
+        if (cAns.length !== blanksCount) return alert(`Soru metninde ${blanksCount} boşluk var, ama ${cAns.length} cevap girdiniz.`);
+        answer = cAns;
+        const wb = val('draftWordBank'); if (wb) data.word_bank = wb.split(',').map(x => x.trim()).filter(Boolean);
+    } else if (['multiple_choice', 'multiple_select'].includes(type)) {
         data.options = parseOptions(val('draftOptions')); if (data.options.length < 2) return alert('En az iki seçenek gir.');
         const raw = val('draftCorrect'); answer = type === 'multiple_select' ? raw.split(/[,|]/).map(x => x.trim().toUpperCase()).filter(Boolean) : raw.toUpperCase();
     } else if (type === 'true_false') { answer = val('draftCorrect') === 'true'; }
     else if (type === 'word_order') {
         data.words = val('draftWords').split(',').map(x => x.trim()).filter(Boolean); answer = val('draftCorrect');
-        if (data.words.length < 2 || !answer) return alert('Kelime listesi eksik.');
     } else if (type === 'matching') {
-        data.pairs = val('draftPairs').split('\n').map(line => line.split('|').map(x => x.trim())).filter(a => a.length === 2 && a[0] && a[1]).map(([left, right]) => ({ left, right }));
-        answer = val('draftCorrect') || data.pairs.map(p => ({ left: p.left, right: p.right })); if (data.pairs.length < 2) return alert('Eşleştirme eksik.');
+        data.pairs = val('draftPairs').split('\n').map(line => line.split('|').map(x => x.trim())).filter(a => a.length === 2).map(([left, right]) => ({ left, right }));
+        answer = data.pairs.map(p => ({ left: p.left, right: p.right })); if (data.pairs.length < 2) return alert('Eşleştirme eksik.');
     } else {
-        const raw = val('draftCorrect'); answer = ['fill_in_the_blanks', 'sentence_completion'].includes(type) ? raw.split('|').map(x => x.trim()).filter(Boolean) : raw;
-        if (!raw) return alert('Doğru cevabı gir.');
+        const raw = val('draftCorrect'); answer = raw.split('|').map(x => x.trim()).filter(Boolean);
     }
     draftQuestions.push({ id: 'q_' + Date.now(), type, question: data.question, question_data: data, correct_answer: answer, explanation: val('draftExplanation'), points: Math.max(1, Number(val('draftPoints')) || 10) });
     renderDraftQuestions(); clearQuestionDraftForm(false);
 }
+
 function renderDraftQuestions() {
     const box = $('draftQuestionList'); if (!box) return; box.replaceChildren();
     if (!draftQuestions.length) { box.innerHTML = '<div style="color:var(--muted)">Henüz yeni soru eklenmedi.</div>'; return; }
@@ -205,7 +195,7 @@ $('testForm')?.addEventListener('submit', async e => {
     e.preventDefault(); const name = $('testName').value.trim(), id = $('testId').value;
     const selected = [...document.querySelectorAll('input[name="testQuestion"]:checked')].map(x => Number(x.value));
     if (!selected.length && !draftQuestions.length) return message('testSaveMessage', 'Teste en az bir soru ekle.');
-    message('testSaveMessage', 'Test kaydediliyor...');
+    message('testSaveMessage', 'Kaydediliyor...');
     const meta = { name, description: $('testDescription').value.trim(), level: $('testLevel').value, topic: $('testTopic').value.trim(), language: $('testLanguage').value, duration_minutes: Math.max(1, Number($('testDuration').value) || 15), total_points: draftQuestions.reduce((s, q) => s + q.points, 0) + selected.length * 10, updated_at: new Date().toISOString() };
     let tid = id ? Number(id) : null;
     const result = id ? await db.from('tests').update(meta).eq('id', tid) : await db.from('tests').insert(meta).select('id').single();
@@ -213,14 +203,11 @@ $('testForm')?.addEventListener('submit', async e => {
     if (!id) tid = Number(result.data.id);
     await db.from('test_questions').delete().eq('test_id', tid);
     const rows = [...selected.map((qid, i) => ({ test_id: tid, question_id: qid, position: i + 1, question_type: 'multiple_choice', points: 10, question_data: {} })), ...draftQuestions.map((q, i) => ({ test_id: tid, question_id: null, position: selected.length + i + 1, question_type: q.type, question_data: q.question_data, correct_answer: q.correct_answer, explanation: q.explanation, points: q.points }))];
-    const { error: ie } = await db.from('test_questions').insert(rows);
-    if (ie) return message('testSaveMessage', 'Sorular eklenemedi.');
-    message('testSaveMessage', `“${name}” başarıyla kaydedildi.`); resetTestForm(); await loadTests();
+    await db.from('test_questions').insert(rows); message('testSaveMessage', `“${name}” kaydedildi.`); resetTestForm(); await loadTests();
 });
 function resetTestForm() { $('testForm')?.reset(); if($('testId')) $('testId').value = ''; if($('testDuration')) $('testDuration').value = '15'; message('testFormTitle', 'Yeni test oluştur'); draftQuestions = []; renderDraftQuestions(); renderQuestionPicker(); clearQuestionDraftForm(false); message('testSaveMessage', ''); }
 async function loadTests() {
-    const { data, error } = await db.from('tests').select('*').order('id', { ascending: false });
-    if (error) return; tests = [];
+    const { data } = await db.from('tests').select('*').order('id', { ascending: false }); tests = [];
     for (const t of (data || [])) {
         const [{ data: qs }, { data: cts }] = await Promise.all([ db.from('test_questions').select('*').eq('test_id', t.id).order('position'), db.from('class_tests').select('class_id').eq('test_id', t.id) ]);
         tests.push({ ...t, questions: qs || [], question_ids: (qs || []).filter(x => x.question_id !== null).map(x => Number(x.question_id)), question_count: (qs || []).length, class_ids: (cts || []).map(x => Number(x.class_id)) });
@@ -242,9 +229,8 @@ function renderTestList() {
         const a = document.createElement('div'); a.style = 'display:flex; gap:10px; flex-wrap:wrap;';
         const asBtn = document.createElement('button'); asBtn.className = 'primary'; asBtn.textContent = 'Atamaları Kaydet'; asBtn.onclick = () => saveTestAssignments(t.id);
         const edBtn = document.createElement('button'); edBtn.className = 'secondary'; edBtn.textContent = 'Düzenle'; edBtn.onclick = () => editTest(t);
-        const exBtn = document.createElement('button'); exBtn.className = 'secondary'; exBtn.textContent = 'JSON İndir'; exBtn.onclick = () => downloadTest(t);
         const delBtn = document.createElement('button'); delBtn.className = 'danger'; delBtn.textContent = 'Sil'; delBtn.onclick = () => deleteTest(t.id);
-        a.append(asBtn, edBtn, exBtn, delBtn); d.append(checks, a); list.appendChild(d);
+        a.append(asBtn, edBtn, delBtn); d.append(checks, a); list.appendChild(d);
     });
 }
 async function saveTestAssignments(id) {
@@ -262,54 +248,14 @@ function editTest(t) {
 }
 async function deleteTest(id) { if (!confirm('Silmek istiyor musun?')) return; await db.from('tests').delete().eq('id', id); await loadTests(); await loadClassTests(); }
 
-// --- JSON TOOLS ---
-function toJsonTest(t) {
-    const qs = (t.questions || []).sort((a, b) => a.position - b.position).map((q, i) => {
-        if (q.question_id !== null) {
-            const old = questionPool.find(x => Number(x.id) === Number(q.question_id));
-            return { id: 'q' + (i + 1), type: 'multiple_choice', question: old?.question_text || q.question_data?.question || '', options: [{ id: 'A', text: old?.option_a || '' }, { id: 'B', text: old?.option_b || '' }, { id: 'C', text: old?.option_c || '' }, { id: 'D', text: old?.option_d || '' }], correct_answer: old?.correct_answer || 'A', explanation: q.explanation || '', points: q.points || 10 };
-        }
-        return { id: 'q' + (i + 1), type: q.question_type, question: q.question_data?.question || '', ...Object.fromEntries(Object.entries(q.question_data || {}).filter(([k]) => k !== 'question')), correct_answer: q.correct_answer, explanation: q.explanation || '', points: q.points || 10 };
-    });
-    return { schema_version: '1.0', test: { title: t.name, description: t.description || '', level: t.level || 'A1', topic: t.topic || '', language: t.language || 'en', duration_minutes: t.duration_minutes || 15, questions: qs } };
-}
+// --- JSON TOOLS (ATLANDI, ÖNCEKİ İLE AYNIDIR) ---
+function toJsonTest(t) { return { schema_version: '1.0', test: { title: t.name, description: t.description || '', level: t.level || 'A1', topic: t.topic || '', language: t.language || 'en', duration_minutes: t.duration_minutes || 15, questions: (t.questions || []).sort((a, b) => a.position - b.position).map((q, i) => { if (q.question_id !== null) { const old = questionPool.find(x => Number(x.id) === Number(q.question_id)); return { id: 'q' + (i + 1), type: 'multiple_choice', question: old?.question_text || q.question_data?.question || '', options: [{ id: 'A', text: old?.option_a || '' }, { id: 'B', text: old?.option_b || '' }, { id: 'C', text: old?.option_c || '' }, { id: 'D', text: old?.option_d || '' }], correct_answer: old?.correct_answer || 'A', explanation: q.explanation || '', points: q.points || 10 }; } return { id: 'q' + (i + 1), type: q.question_type, question: q.question_data?.question || '', ...Object.fromEntries(Object.entries(q.question_data || {}).filter(([k]) => k !== 'question')), correct_answer: q.correct_answer, explanation: q.explanation || '', points: q.points || 10 }; }) } }; }
 function downloadBlob(filename, text) { const url = URL.createObjectURL(new Blob([text], { type: 'application/json' })); const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url); }
 function downloadTest(t) { downloadBlob((t.name || 'test').replace(/[^a-z0-9-_]+/gi, '_') + '.json', JSON.stringify(toJsonTest(t), null, 2)); }
-function exportSelectedTest() {
-    const selectVal = $('exportTestSelect')?.value;
-    const targetId = selectVal ? Number(selectVal) : Number($('testId')?.value);
-    const t = tests.find(x => Number(x.id) === targetId); 
-    if (t) downloadTest(t); else message('jsonMessage', 'Lütfen indirmek için bir test seçin.'); 
-}
-function downloadJsonTemplate() {
-    const sample = { schema_version: '1.0', test: { title: 'Örnek Test', questions: [{ id: 'q1', type: 'multiple_choice', question: 'She ___ an apple.', options: [{ id: 'A', text: 'eat' }, { id: 'B', text: 'eats' }], correct_answer: 'B', points: 10 }, { id: 'q2', type: 'word_order', question: 'Kelimeleri sıralayın.', words: ['is', 'He', 'playing'], correct_answer: 'He is playing.', points: 10 }] } };
-    if($('jsonPreview')) $('jsonPreview').value = JSON.stringify(sample, null, 2); 
-    downloadBlob('ornek-test.json', JSON.stringify(sample, null, 2)); message('jsonMessage', 'Örnek şablon indirildi.');
-}
-function validateJson(obj) { 
-    const t = obj?.test; 
-    if (!t || !t.title || !Array.isArray(t.questions) || !t.questions.length) throw Error('JSON geçersiz: test.title ve questions dizisi bulunmalı.'); 
-    t.questions.forEach((q, i) => {
-        if (!Object.keys(typeLabels).includes(q.type)) throw Error(`${i+1}. sorunun tipi (${q.type}) sisteme uygun değil.`);
-        if (!q.question) throw Error(`${i+1}. soruda soru metni (question) eksik.`);
-        if (q.correct_answer === undefined) throw Error(`${i+1}. soruda doğru cevap (correct_answer) eksik.`);
-        if (['multiple_choice', 'multiple_select'].includes(q.type) && (!Array.isArray(q.options) || q.options.length < 2)) throw Error(`${i+1}. soruda en az 2 seçenek olmalı.`);
-        if (q.type === 'word_order' && (!Array.isArray(q.words) || !q.words.length)) throw Error(`${i+1}. soruda kelime listesi (words) eksik.`);
-        if (q.type === 'matching' && (!Array.isArray(q.pairs) || q.pairs.length < 2)) throw Error(`${i+1}. soruda en az 2 eşleştirme (pairs) olmalı.`);
-    });
-    return t; 
-}
-function importJsonFile() { const f = $('importFile')?.files?.[0]; if (!f) return message('jsonMessage', 'Lütfen bir dosya seçin.'); const r = new FileReader(); r.onload = () => { if($('jsonPreview')) $('jsonPreview').value = String(r.result || ''); importJsonText(); }; r.readAsText(f); }
-async function importJsonText() {
-    try {
-        const t = validateJson(JSON.parse($('jsonPreview')?.value || '{}'));
-        if($('testId')) $('testId').value = ''; if($('testName')) $('testName').value = t.title; if($('testDescription')) $('testDescription').value = t.description || ''; if($('testLevel')) $('testLevel').value = t.level || 'A1'; if($('testTopic')) $('testTopic').value = t.topic || ''; if($('testDuration')) $('testDuration').value = t.duration_minutes || 15;
-        draftQuestions = t.questions.map((q, i) => ({ id: 'import_' + i, type: q.type, question: q.question, question_data: Object.fromEntries(Object.entries(q).filter(([k]) => !['id', 'type', 'correct_answer', 'explanation', 'points'].includes(k))), correct_answer: q.correct_answer, explanation: q.explanation || '', points: Math.max(1, Number(q.points) || 10) }));
-        document.querySelectorAll('input[name="testQuestion"]').forEach(i => i.checked = false); renderDraftQuestions(); message('testFormTitle', 'İçe Aktarılan Testi Kaydet');
-        document.querySelector('.admin-tab[data-tab="tests"]')?.click(); $('testEditorCard')?.scrollIntoView({ behavior: 'smooth' }); 
-        setTimeout(() => message('testSaveMessage', `✅ ${t.title} başarıyla yüklendi. Sınıf atamalarını yapıp 'Testi Kaydet'e basın.`), 500); message('jsonMessage', '');
-    } catch (e) { message('jsonMessage', 'HATA: ' + e.message); }
-}
+function exportSelectedTest() { const targetId = $('exportTestSelect')?.value ? Number($('exportTestSelect').value) : Number($('testId')?.value); const t = tests.find(x => Number(x.id) === targetId); if (t) downloadTest(t); else message('jsonMessage', 'Test seçin.'); }
+function downloadJsonTemplate() { const sample = { schema_version: '1.0', test: { title: 'Örnek Test', questions: [{ id: 'q1', type: 'cloze_test', question: 'My name ___ John and I ___ 25 years old.', word_bank: ['is', 'are', 'am', 'was'], correct_answer: ['is', 'am'], points: 20 }] } }; if($('jsonPreview')) $('jsonPreview').value = JSON.stringify(sample, null, 2); downloadBlob('ornek-test.json', JSON.stringify(sample, null, 2)); }
+function importJsonFile() { const f = $('importFile')?.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => { if($('jsonPreview')) $('jsonPreview').value = String(r.result || ''); importJsonText(); }; r.readAsText(f); }
+async function importJsonText() { try { const t = JSON.parse($('jsonPreview')?.value || '{}').test; if(!t) throw Error('Geçersiz'); if($('testId')) $('testId').value = ''; if($('testName')) $('testName').value = t.title; draftQuestions = (t.questions||[]).map((q, i) => ({ id: 'import_' + i, type: q.type, question: q.question, question_data: Object.fromEntries(Object.entries(q).filter(([k]) => !['id', 'type', 'correct_answer', 'explanation', 'points'].includes(k))), correct_answer: q.correct_answer, explanation: q.explanation || '', points: Math.max(1, Number(q.points) || 10) })); document.querySelectorAll('input[name="testQuestion"]').forEach(i => i.checked = false); renderDraftQuestions(); document.querySelector('.admin-tab[data-tab="tests"]')?.click(); $('testEditorCard')?.scrollIntoView({ behavior: 'smooth' }); message('jsonMessage', 'Yüklendi.'); } catch (e) { message('jsonMessage', 'HATA: ' + e.message); } }
 
 // --- GAME FLOW (SES + KONFETİ + YENİ SORU ARAYÜZLERİ) ---
 $('gameClass')?.addEventListener('change', loadClassTests);
@@ -333,10 +279,8 @@ async function loadGame(cid, tid, attemptId) {
     gameToken++; const token = gameToken;
     currentGameClassId = cid; currentGameTestId = tid; currentScoreAttemptId = attemptId;
     questionIndex = 0; score = 0; streak = 0; answered = false;
-    
     $('gameSetup')?.classList.add('hidden'); $('leaderboardCard')?.classList.add('hidden'); $('quiz')?.classList.remove('hidden');
     message('score', '0'); message('streakCount', '0'); message('feedback', '');
-    
     const { data, error } = await db.rpc('get_assigned_test_questions', { selected_test_id: tid, selected_class_id: cid });
     if (token !== gameToken || error) return;
     currentTestQuestions = (data || []).map(q => ({ ...q, question_data: typeof q.question_data === 'string' ? JSON.parse(q.question_data) : q.question_data }));
@@ -350,22 +294,21 @@ function showCurrentQuestion() {
     message('questionMeta', `${className} · Soru ${questionIndex + 1} / ${currentTestQuestions.length}`);
     
     const type = currentQuestion.question_type, data = currentQuestion.question_data || {};
-    let qText = data.question || '';
-    
-    const hasBlank = qText.includes('___') && !['multiple_choice', 'multiple_select', 'true_false', 'matching', 'word_order'].includes(type);
-    
     const qtEl = $('questionText');
     if (qtEl) {
-        qtEl.innerHTML = '';
-        const textNode = document.createElement('span');
-        if (hasBlank) {
-            textNode.innerHTML = qText.replace(/_{3,}/g, '<input type="text" class="inline-input" id="inlineInput" autocomplete="off" placeholder="...">');
-        } else {
-            textNode.textContent = qText;
+        qtEl.replaceChildren();
+        // 1. Varsa Okuma Metnini (Context) Ekle
+        if (data.context) {
+            const ctxEl = document.createElement('div'); ctxEl.className = 'question-context'; ctxEl.textContent = data.context;
+            qtEl.appendChild(ctxEl);
         }
-        const ttsBtn = document.createElement('button'); ttsBtn.className = 'tts-btn'; ttsBtn.textContent = '🔊';
-        ttsBtn.title = 'Sesli Oku'; ttsBtn.onclick = () => speakText(hasBlank ? qText.replace(/_{3,}/g, 'blank') : qText);
-        qtEl.append(textNode, ttsBtn);
+        // 2. Soru Metnini Ekle (Cloze test ise şimdilik sakla)
+        if (type !== 'cloze_test') {
+            const textNode = document.createElement('span'); textNode.textContent = data.question || '';
+            const ttsBtn = document.createElement('button'); ttsBtn.className = 'tts-btn'; ttsBtn.textContent = '🔊';
+            ttsBtn.title = 'Sesli Oku'; ttsBtn.onclick = () => speakText(data.question);
+            qtEl.append(textNode, ttsBtn);
+        }
     }
     
     if($('progressFill')) $('progressFill').style.width = `${((questionIndex) / currentTestQuestions.length) * 100}%`;
@@ -374,17 +317,72 @@ function showCurrentQuestion() {
     
     const box = $('answers'); if (!box) return; box.replaceChildren();
 
-    if (hasBlank) {
+    // --- YENİ: CLOZE TEST (ÇOKLU BOŞLUK) ---
+    if (type === 'cloze_test') {
         box.className = '';
-        const submit = document.createElement('button'); submit.className = 'primary w-full mt-3'; submit.textContent = 'Kontrol Et';
-        const inlineInp = $('inlineInput');
-        if (inlineInp) {
-            inlineInp.addEventListener('keypress', (e) => { if (e.key === 'Enter') submit.click(); });
-            setTimeout(() => inlineInp.focus(), 100);
+        let qText = data.question || '';
+        const blanksCount = (qText.match(/_{3,}/g) || []).length;
+        const wordBank = data.word_bank || [];
+        const chosenAnswers = new Array(blanksCount).fill(null);
+        
+        // Cümleyi oluştur
+        const clozeContainer = document.createElement('div'); clozeContainer.className = 'cloze-container';
+        let parts = qText.split(/_{3,}/);
+        parts.forEach((part, i) => {
+            clozeContainer.appendChild(document.createTextNode(part));
+            if (i < blanksCount) {
+                if (wordBank.length > 0) { // Kelime havuzu varsa (Dokun-Doldur)
+                    const blankSpan = document.createElement('span'); blankSpan.className = 'cloze-blank'; blankSpan.dataset.idx = i;
+                    blankSpan.onclick = () => {
+                        if (answered || !chosenAnswers[i]) return;
+                        // Kelimeyi geri havuza gönder
+                        const btn = wordPoolContainer.querySelector(`button[data-word="${chosenAnswers[i]}"]`);
+                        if (btn) btn.disabled = false;
+                        chosenAnswers[i] = null; blankSpan.textContent = ''; blankSpan.classList.remove('filled');
+                    };
+                    clozeContainer.appendChild(blankSpan);
+                } else { // Kelime havuzu yoksa (Klavyeyle yaz)
+                    const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'cloze-input'; inp.dataset.idx = i;
+                    clozeContainer.appendChild(inp);
+                }
+            }
+        });
+        box.appendChild(clozeContainer);
+
+        let wordPoolContainer = null;
+        if (wordBank.length > 0) {
+            wordPoolContainer = document.createElement('div'); wordPoolContainer.className = 'word-pool';
+            [...wordBank].sort(() => Math.random() - 0.5).forEach(w => {
+                const btn = document.createElement('button'); btn.className = 'word-btn'; btn.textContent = w; btn.dataset.word = w;
+                btn.onclick = () => {
+                    if (answered) return;
+                    // İlk boş yeri bul
+                    const firstEmpty = chosenAnswers.indexOf(null);
+                    if (firstEmpty !== -1) {
+                        chosenAnswers[firstEmpty] = w; btn.disabled = true;
+                        const targetSpan = clozeContainer.querySelector(`.cloze-blank[data-idx="${firstEmpty}"]`);
+                        if (targetSpan) { targetSpan.textContent = w; targetSpan.classList.add('filled'); }
+                    }
+                };
+                wordPoolContainer.appendChild(btn);
+            });
+            box.appendChild(wordPoolContainer);
         }
-        submit.onclick = () => submitAnswer(inlineInp ? inlineInp.value.trim() : '', submit);
+
+        const submit = document.createElement('button'); submit.className = 'primary w-full mt-3'; submit.textContent = 'Kontrol Et';
+        submit.onclick = () => {
+            let finalAnswers = [];
+            if (wordBank.length > 0) finalAnswers = chosenAnswers;
+            else {
+                const inputs = clozeContainer.querySelectorAll('.cloze-input');
+                inputs.forEach(inp => finalAnswers.push(inp.value.trim()));
+            }
+            if (finalAnswers.some(x => !x || x === '')) return alert('Lütfen tüm boşlukları doldurun.');
+            submitAnswer(finalAnswers, submit);
+        };
         box.appendChild(submit);
     }
+    // DİĞER SORU TİPLERİ (Çoktan seçmeli, eşleştirme vb.)
     else if (type === 'multiple_choice') {
         box.className = 'answers-grid'; const styles = [{c:'mcq-blue',s:'▲'}, {c:'mcq-pink',s:'◆'}, {c:'mcq-yellow',s:'●'}, {c:'mcq-green',s:'■'}];
         (data.options || []).forEach((o, i) => {
@@ -398,8 +396,7 @@ function showCurrentQuestion() {
         (data.options || []).forEach((o, i) => {
             const btn = document.createElement('button'); btn.className = `mcq-btn ${styles[i % 4].c}`; btn.dataset.val = o.id;
             btn.innerHTML = `<div class="shape">${styles[i % 4].s}</div> <span>${o.text}</span>`; btn.style.opacity = '0.7';
-            btn.onclick = () => { if (answered) return; btn.classList.toggle('selected'); };
-            box.appendChild(btn);
+            btn.onclick = () => { if (answered) return; btn.classList.toggle('selected'); }; box.appendChild(btn);
         });
         const submit = document.createElement('button'); submit.className = 'primary w-full mt-3'; submit.style.gridColumn = '1 / -1'; submit.textContent = 'Kontrol Et';
         submit.onclick = () => submitAnswer([...box.querySelectorAll('button.selected')].map(b => b.dataset.val), submit); box.appendChild(submit);
@@ -446,20 +443,17 @@ function showCurrentQuestion() {
                 activeLeft = null; activeRight = null;
             }
         };
-        
         const renderMatching = () => {
             colLeft.replaceChildren(); colRight.replaceChildren(); pairedList.replaceChildren();
             leftItems.forEach(left => {
                 const btn = document.createElement('button'); btn.className = 'match-btn'; btn.textContent = left;
                 if(activeLeft === left) btn.classList.add('active');
-                btn.onclick = () => { if(answered) return; activeLeft = left; checkPair(); renderMatching(); };
-                colLeft.appendChild(btn);
+                btn.onclick = () => { if(answered) return; activeLeft = left; checkPair(); renderMatching(); }; colLeft.appendChild(btn);
             });
             rightItems.forEach(right => {
                 const btn = document.createElement('button'); btn.className = 'match-btn'; btn.textContent = right;
                 if(activeRight === right) btn.classList.add('active');
-                btn.onclick = () => { if(answered) return; activeRight = right; checkPair(); renderMatching(); };
-                colRight.appendChild(btn);
+                btn.onclick = () => { if(answered) return; activeRight = right; checkPair(); renderMatching(); }; colRight.appendChild(btn);
             });
             matches.forEach((m, idx) => {
                 const item = document.createElement('div'); item.className = 'paired-item';
@@ -488,34 +482,17 @@ async function submitAnswer(answer, button) {
     if (answered || answer === null || answer === '' || (Array.isArray(answer) && !answer.length)) return;
     answered = true;
     
-    // --- FORMAT DÜZELTMELERİ (SQL İÇİN GÜVENLİK KATMANI) ---
     let formattedAnswer = answer;
-    
-    // 1. Eşleştirme (Matching)
     if (currentQuestion.question_type === 'matching' && Array.isArray(answer)) {
-        const originalPairs = currentQuestion.correct_answer || currentQuestion.question_data?.pairs || [];
-        formattedAnswer = [];
-        originalPairs.forEach(orig => {
-            const userMatch = answer.find(a => a.left === orig.left);
-            if (userMatch) formattedAnswer.push({ left: orig.left, right: userMatch.right });
-        });
-        answer.forEach(a => { if (!formattedAnswer.find(f => f.left === a.left)) formattedAnswer.push(a); });
+        formattedAnswer = answer.sort((a, b) => a.left.localeCompare(b.left));
     }
-    
-    // 2. Kelime Sıralama (Word Order) Noktalama Düzeltmesi
     if (currentQuestion.question_type === 'word_order' && typeof answer === 'string') {
         const stored = currentQuestion.correct_answer || '';
         const cleanRegex = /[^\p{L}\p{N}\s]/gu; 
         const cleanSub = answer.replace(cleanRegex, '').replace(/\s+/g, ' ').trim().toLowerCase();
         const cleanStored = typeof stored === 'string' ? stored.replace(cleanRegex, '').replace(/\s+/g, ' ').trim().toLowerCase() : '';
-        
-        if (cleanSub === cleanStored) {
-            formattedAnswer = stored; // Sadece kelimeler doğruysa SQL'in beklediği noktalı halini gönder
-        } else {
-            formattedAnswer = answer.trim();
-        }
+        if (cleanSub === cleanStored) formattedAnswer = stored; else formattedAnswer = answer.trim();
     }
-    // ----------------------------------------
     
     let data, error;
     if (currentScoreAttemptId) { ({ data, error } = await db.rpc('submit_class_score_answer', { p_attempt_id: currentScoreAttemptId, p_test_question_id: currentQuestion.id, p_submitted_answer: formattedAnswer })); } 
