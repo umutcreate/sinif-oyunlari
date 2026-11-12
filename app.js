@@ -11,7 +11,8 @@ let activeScoreSessionId = null, activeScoreSessionCode = null;
 const typeLabels = {
     multiple_choice: 'Çoktan seçmeli', true_false: 'Doğru / Yanlış', fill_in_the_blanks: 'Tek Boşluk Doldurma',
     cloze_test: 'Çoklu Boşluk / Cloze Test (___)', word_order: 'Kelime sıralama', matching: 'Eşleştirme',
-    multiple_select: 'Birden fazla doğru seçenek', short_answer: 'Kısa cevap'
+    multiple_select: 'Birden fazla doğru seçenek', short_answer: 'Kısa cevap', translation: 'Çeviri', error_correction: 'Hata düzeltme',
+    sentence_completion: 'Cümle tamamlama'
 };
 
 const $ = id => document.getElementById(id);
@@ -34,6 +35,7 @@ function playSound(type) {
         gain.gain.setValueAtTime(0.2, audioCtx.currentTime); gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.8); osc.start(); osc.stop(audioCtx.currentTime + 0.8);
     }
 }
+
 function speakText(text) {
     if (!window.speechSynthesis) return; window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text); utterance.lang = 'en-US'; utterance.rate = 0.9; window.speechSynthesis.speak(utterance);
@@ -43,6 +45,7 @@ function showPage(page) {
     $('game')?.classList.toggle('hidden', page !== 'game'); $('teacher')?.classList.toggle('hidden', page !== 'teacher');
     $('gameNav')?.classList.toggle('active', page === 'game'); $('teacherNav')?.classList.toggle('active', page === 'teacher');
 }
+
 function fillSelect(id, items, placeholder) {
     const s = $(id); if (!s) return; s.replaceChildren();
     if (placeholder) { const o = document.createElement('option'); o.value = ''; o.textContent = placeholder; s.appendChild(o); }
@@ -139,7 +142,7 @@ function renderNewQuestionFields() {
             const l = document.createElement('label'); l.textContent = 'Doğru cevap'; l.style = "display:block; font-weight:bold; margin:10px 0 5px;";
             const s = document.createElement('select'); s.id = 'draftCorrect'; s.style="width:100%; padding:10px; border-radius:8px; border:2px solid #e2e8f0;";
             s.add(new Option('Doğru', 'true')); s.add(new Option('Yanlış', 'false')); box.append(l, s);
-        } else if (type === 'fill_in_the_blanks' || type === 'short_answer') {
+        } else if (['fill_in_the_blanks', 'short_answer', 'sentence_completion', 'translation', 'error_correction'].includes(type)) {
             add('Doğru cevap (Alternatifleri | ile ayır)', 'draftCorrect', 'is|are');
         } else if (type === 'word_order') {
             add('Karışık kelimeler (virgülle ayır)', 'draftWords', 'I, study, English, every day'); add('Doğru cümle', 'draftCorrect', 'I study English every day.');
@@ -248,16 +251,31 @@ function editTest(t) {
 }
 async function deleteTest(id) { if (!confirm('Silmek istiyor musun?')) return; await db.from('tests').delete().eq('id', id); await loadTests(); await loadClassTests(); }
 
-// --- JSON TOOLS (ATLANDI, ÖNCEKİ İLE AYNIDIR) ---
+// --- JSON TOOLS ---
+function validateJson(obj) { 
+    const t = obj?.test; 
+    if (!t || !t.title || !Array.isArray(t.questions) || !t.questions.length) throw Error('JSON geçersiz: test.title ve questions dizisi bulunmalı.'); 
+    t.questions.forEach((q, i) => {
+        if (!Object.keys(typeLabels).includes(q.type) && q.type !== 'cloze_test') throw Error(`${i+1}. sorunun tipi (${q.type}) sisteme uygun değil.`);
+        if (!q.question) throw Error(`${i+1}. soruda soru metni (question) eksik.`);
+        if (q.correct_answer === undefined) throw Error(`${i+1}. soruda doğru cevap (correct_answer) eksik.`);
+        if (['multiple_choice', 'multiple_select'].includes(q.type) && (!Array.isArray(q.options) || q.options.length < 2)) throw Error(`${i+1}. soruda en az 2 seçenek olmalı.`);
+        if (q.type === 'word_order' && (!Array.isArray(q.words) || !q.words.length)) throw Error(`${i+1}. soruda kelime listesi (words) eksik.`);
+        if (q.type === 'matching' && (!Array.isArray(q.pairs) || q.pairs.length < 2)) throw Error(`${i+1}. soruda en az 2 eşleştirme (pairs) olmalı.`);
+        if (q.type === 'cloze_test' && !Array.isArray(q.correct_answer)) throw Error(`${i+1}. soruda cloze_test için doğru cevaplar dizi (array) formatında olmalı.`);
+    });
+    return t; 
+}
+
 function toJsonTest(t) { return { schema_version: '1.0', test: { title: t.name, description: t.description || '', level: t.level || 'A1', topic: t.topic || '', language: t.language || 'en', duration_minutes: t.duration_minutes || 15, questions: (t.questions || []).sort((a, b) => a.position - b.position).map((q, i) => { if (q.question_id !== null) { const old = questionPool.find(x => Number(x.id) === Number(q.question_id)); return { id: 'q' + (i + 1), type: 'multiple_choice', question: old?.question_text || q.question_data?.question || '', options: [{ id: 'A', text: old?.option_a || '' }, { id: 'B', text: old?.option_b || '' }, { id: 'C', text: old?.option_c || '' }, { id: 'D', text: old?.option_d || '' }], correct_answer: old?.correct_answer || 'A', explanation: q.explanation || '', points: q.points || 10 }; } return { id: 'q' + (i + 1), type: q.question_type, question: q.question_data?.question || '', ...Object.fromEntries(Object.entries(q.question_data || {}).filter(([k]) => k !== 'question')), correct_answer: q.correct_answer, explanation: q.explanation || '', points: q.points || 10 }; }) } }; }
 function downloadBlob(filename, text) { const url = URL.createObjectURL(new Blob([text], { type: 'application/json' })); const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url); }
 function downloadTest(t) { downloadBlob((t.name || 'test').replace(/[^a-z0-9-_]+/gi, '_') + '.json', JSON.stringify(toJsonTest(t), null, 2)); }
 function exportSelectedTest() { const targetId = $('exportTestSelect')?.value ? Number($('exportTestSelect').value) : Number($('testId')?.value); const t = tests.find(x => Number(x.id) === targetId); if (t) downloadTest(t); else message('jsonMessage', 'Test seçin.'); }
 function downloadJsonTemplate() { const sample = { schema_version: '1.0', test: { title: 'Örnek Test', questions: [{ id: 'q1', type: 'cloze_test', question: 'My name ___ John and I ___ 25 years old.', word_bank: ['is', 'are', 'am', 'was'], correct_answer: ['is', 'am'], points: 20 }] } }; if($('jsonPreview')) $('jsonPreview').value = JSON.stringify(sample, null, 2); downloadBlob('ornek-test.json', JSON.stringify(sample, null, 2)); }
 function importJsonFile() { const f = $('importFile')?.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => { if($('jsonPreview')) $('jsonPreview').value = String(r.result || ''); importJsonText(); }; r.readAsText(f); }
-async function importJsonText() { try { const t = JSON.parse($('jsonPreview')?.value || '{}').test; if(!t) throw Error('Geçersiz'); if($('testId')) $('testId').value = ''; if($('testName')) $('testName').value = t.title; draftQuestions = (t.questions||[]).map((q, i) => ({ id: 'import_' + i, type: q.type, question: q.question, question_data: Object.fromEntries(Object.entries(q).filter(([k]) => !['id', 'type', 'correct_answer', 'explanation', 'points'].includes(k))), correct_answer: q.correct_answer, explanation: q.explanation || '', points: Math.max(1, Number(q.points) || 10) })); document.querySelectorAll('input[name="testQuestion"]').forEach(i => i.checked = false); renderDraftQuestions(); document.querySelector('.admin-tab[data-tab="tests"]')?.click(); $('testEditorCard')?.scrollIntoView({ behavior: 'smooth' }); message('jsonMessage', 'Yüklendi.'); } catch (e) { message('jsonMessage', 'HATA: ' + e.message); } }
+async function importJsonText() { try { const t = validateJson(JSON.parse($('jsonPreview')?.value || '{}')); if($('testId')) $('testId').value = ''; if($('testName')) $('testName').value = t.title; if($('testDescription')) $('testDescription').value = t.description || ''; if($('testLevel')) $('testLevel').value = t.level || 'A1'; if($('testTopic')) $('testTopic').value = t.topic || ''; if($('testDuration')) $('testDuration').value = t.duration_minutes || 15; draftQuestions = (t.questions||[]).map((q, i) => ({ id: 'import_' + i, type: q.type, question: q.question, question_data: Object.fromEntries(Object.entries(q).filter(([k]) => !['id', 'type', 'correct_answer', 'explanation', 'points'].includes(k))), correct_answer: q.correct_answer, explanation: q.explanation || '', points: Math.max(1, Number(q.points) || 10) })); document.querySelectorAll('input[name="testQuestion"]').forEach(i => i.checked = false); renderDraftQuestions(); document.querySelector('.admin-tab[data-tab="tests"]')?.click(); $('testEditorCard')?.scrollIntoView({ behavior: 'smooth' }); message('jsonMessage', '✅ Yüklendi.'); } catch (e) { message('jsonMessage', 'HATA: ' + e.message); } }
 
-// --- GAME FLOW (SES + KONFETİ + YENİ SORU ARAYÜZLERİ) ---
+// --- GAME FLOW ---
 $('gameClass')?.addEventListener('change', loadClassTests);
 async function loadClassTests() {
     const cid = Number($('gameClass').value), s = $('gameTest'); if (!s) return;
@@ -297,12 +315,10 @@ function showCurrentQuestion() {
     const qtEl = $('questionText');
     if (qtEl) {
         qtEl.replaceChildren();
-        // 1. Varsa Okuma Metnini (Context) Ekle
         if (data.context) {
             const ctxEl = document.createElement('div'); ctxEl.className = 'question-context'; ctxEl.textContent = data.context;
             qtEl.appendChild(ctxEl);
         }
-        // 2. Soru Metnini Ekle (Cloze test ise şimdilik sakla)
         if (type !== 'cloze_test') {
             const textNode = document.createElement('span'); textNode.textContent = data.question || '';
             const ttsBtn = document.createElement('button'); ttsBtn.className = 'tts-btn'; ttsBtn.textContent = '🔊';
@@ -317,7 +333,6 @@ function showCurrentQuestion() {
     
     const box = $('answers'); if (!box) return; box.replaceChildren();
 
-    // --- YENİ: CLOZE TEST (ÇOKLU BOŞLUK) ---
     if (type === 'cloze_test') {
         box.className = '';
         let qText = data.question || '';
@@ -325,23 +340,21 @@ function showCurrentQuestion() {
         const wordBank = data.word_bank || [];
         const chosenAnswers = new Array(blanksCount).fill(null);
         
-        // Cümleyi oluştur
         const clozeContainer = document.createElement('div'); clozeContainer.className = 'cloze-container';
         let parts = qText.split(/_{3,}/);
         parts.forEach((part, i) => {
             clozeContainer.appendChild(document.createTextNode(part));
             if (i < blanksCount) {
-                if (wordBank.length > 0) { // Kelime havuzu varsa (Dokun-Doldur)
+                if (wordBank.length > 0) {
                     const blankSpan = document.createElement('span'); blankSpan.className = 'cloze-blank'; blankSpan.dataset.idx = i;
                     blankSpan.onclick = () => {
                         if (answered || !chosenAnswers[i]) return;
-                        // Kelimeyi geri havuza gönder
                         const btn = wordPoolContainer.querySelector(`button[data-word="${chosenAnswers[i]}"]`);
                         if (btn) btn.disabled = false;
                         chosenAnswers[i] = null; blankSpan.textContent = ''; blankSpan.classList.remove('filled');
                     };
                     clozeContainer.appendChild(blankSpan);
-                } else { // Kelime havuzu yoksa (Klavyeyle yaz)
+                } else {
                     const inp = document.createElement('input'); inp.type = 'text'; inp.className = 'cloze-input'; inp.dataset.idx = i;
                     clozeContainer.appendChild(inp);
                 }
@@ -356,7 +369,6 @@ function showCurrentQuestion() {
                 const btn = document.createElement('button'); btn.className = 'word-btn'; btn.textContent = w; btn.dataset.word = w;
                 btn.onclick = () => {
                     if (answered) return;
-                    // İlk boş yeri bul
                     const firstEmpty = chosenAnswers.indexOf(null);
                     if (firstEmpty !== -1) {
                         chosenAnswers[firstEmpty] = w; btn.disabled = true;
@@ -382,7 +394,6 @@ function showCurrentQuestion() {
         };
         box.appendChild(submit);
     }
-    // DİĞER SORU TİPLERİ (Çoktan seçmeli, eşleştirme vb.)
     else if (type === 'multiple_choice') {
         box.className = 'answers-grid'; const styles = [{c:'mcq-blue',s:'▲'}, {c:'mcq-pink',s:'◆'}, {c:'mcq-yellow',s:'●'}, {c:'mcq-green',s:'■'}];
         (data.options || []).forEach((o, i) => {
