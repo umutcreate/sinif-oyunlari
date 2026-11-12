@@ -217,10 +217,9 @@ $('testForm')?.addEventListener('submit', async e => {
     
     const { error: insertErr } = await db.from('test_questions').insert(rows);
     
-    // YENİ HATA YAKALAMA SİSTEMİ
     if (insertErr) {
         console.error("Supabase Insert Hatası:", insertErr);
-        $('testSaveMessage').style.color = '#dc2626'; // Kırmızı
+        $('testSaveMessage').style.color = '#dc2626'; // Kırmızı Hata
         return message('testSaveMessage', '🚨 SORULAR EKLENEMEDİ: ' + insertErr.message);
     }
     
@@ -296,7 +295,7 @@ function downloadJsonTemplate() { const sample = { schema_version: '1.0', test: 
 function importJsonFile() { const f = $('importFile')?.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => { if($('jsonPreview')) $('jsonPreview').value = String(r.result || ''); importJsonText(); }; r.readAsText(f); }
 async function importJsonText() { try { const t = validateJson(JSON.parse($('jsonPreview')?.value || '{}')); if($('testId')) $('testId').value = ''; if($('testName')) $('testName').value = t.title; if($('testDescription')) $('testDescription').value = t.description || ''; if($('testLevel')) $('testLevel').value = t.level || 'A1'; if($('testTopic')) $('testTopic').value = t.topic || ''; if($('testDuration')) $('testDuration').value = t.duration_minutes || 15; draftQuestions = (t.questions||[]).map((q, i) => ({ id: 'import_' + i, type: q.type, question: q.question, question_data: Object.fromEntries(Object.entries(q).filter(([k]) => !['id', 'type', 'correct_answer', 'explanation', 'points'].includes(k))), correct_answer: q.correct_answer, explanation: q.explanation || '', points: Math.max(1, Number(q.points) || 10) })); document.querySelectorAll('input[name="testQuestion"]').forEach(i => i.checked = false); renderDraftQuestions(); document.querySelector('.admin-tab[data-tab="tests"]')?.click(); $('testEditorCard')?.scrollIntoView({ behavior: 'smooth' }); message('jsonMessage', '✅ Yüklendi. Lütfen "Testi Kaydet" butonuna basınız.'); } catch (e) { message('jsonMessage', 'HATA: ' + e.message); } }
 
-// --- GAME FLOW ---
+// --- GAME FLOW (YENİ HATA YAKALAYICI VE YEDEK SİSTEM) ---
 $('gameClass')?.addEventListener('change', loadClassTests);
 async function loadClassTests() {
     const cid = Number($('gameClass').value), s = $('gameTest'); if (!s) return;
@@ -318,12 +317,44 @@ async function loadGame(cid, tid, attemptId) {
     gameToken++; const token = gameToken;
     currentGameClassId = cid; currentGameTestId = tid; currentScoreAttemptId = attemptId;
     questionIndex = 0; score = 0; streak = 0; answered = false;
-    $('gameSetup')?.classList.add('hidden'); $('leaderboardCard')?.classList.add('hidden'); $('quiz')?.classList.remove('hidden');
+    
+    $('gameSetup')?.classList.add('hidden'); 
+    $('leaderboardCard')?.classList.add('hidden'); 
+    $('quiz')?.classList.remove('hidden');
     message('score', '0'); message('streakCount', '0'); message('feedback', '');
-    const { data, error } = await db.rpc('get_assigned_test_questions', { selected_test_id: tid, selected_class_id: cid });
-    if (token !== gameToken || error) return;
-    currentTestQuestions = (data || []).map(q => ({ ...q, question_data: typeof q.question_data === 'string' ? JSON.parse(q.question_data) : q.question_data }));
-    if (!currentTestQuestions.length) { message('questionText', 'Soru yok.'); return; }
+    message('questionText', 'Sorular yükleniyor...');
+    
+    // 1. Önce RPC fonksiyonu ile çekmeyi dene
+    let { data, error } = await db.rpc('get_assigned_test_questions', { selected_test_id: tid, selected_class_id: cid });
+    
+    // 2. Eğer RPC hata verirse veya boş dönerse, doğrudan tablodan çek (Yedek Güvenlik Katmanı)
+    if (error || !data || !data.length) {
+        console.warn("RPC'den veri gelmedi, doğrudan tablodan çekiliyor...", error);
+        const directRes = await db.from('test_questions').select('*').eq('test_id', tid).order('position');
+        if (directRes.data && directRes.data.length > 0) {
+            data = directRes.data;
+            error = null;
+        } else if (directRes.error) {
+            error = directRes.error;
+        }
+    }
+
+    if (token !== gameToken) return;
+    
+    if (error) {
+        message('questionText', 'Veritabanı Hatası: ' + error.message);
+        return;
+    }
+
+    currentTestQuestions = (data || []).map(q => ({ 
+        ...q, 
+        question_data: typeof q.question_data === 'string' ? JSON.parse(q.question_data) : (q.question_data || {}) 
+    }));
+
+    if (!currentTestQuestions.length) { 
+        message('questionText', `Bu testin içinde kayıtlı soru bulunamadı (Test ID: ${tid}). Lütfen Öğretmen Panelinden bu testi silip JSON ile yeniden kaydedin.`); 
+        return; 
+    }
     showCurrentQuestion();
 }
 
