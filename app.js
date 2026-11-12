@@ -127,7 +127,6 @@ function renderNewQuestionFields() {
         if (kind !== 'textarea') i.type = kind; else i.style.minHeight = "80px"; box.append(l, i); return i;
     };
     
-    // Tümü için ortak Okuma Metni Alanı (Reading Context)
     add('Okuma Parçası / Bağlam Metni (İsteğe Bağlı)', 'draftContext', 'Section A veya B gibi sorular için okunacak metni buraya yapıştırın...', 'textarea');
 
     if (type === 'cloze_test') {
@@ -198,16 +197,39 @@ $('testForm')?.addEventListener('submit', async e => {
     e.preventDefault(); const name = $('testName').value.trim(), id = $('testId').value;
     const selected = [...document.querySelectorAll('input[name="testQuestion"]:checked')].map(x => Number(x.value));
     if (!selected.length && !draftQuestions.length) return message('testSaveMessage', 'Teste en az bir soru ekle.');
+    
     message('testSaveMessage', 'Kaydediliyor...');
+    
     const meta = { name, description: $('testDescription').value.trim(), level: $('testLevel').value, topic: $('testTopic').value.trim(), language: $('testLanguage').value, duration_minutes: Math.max(1, Number($('testDuration').value) || 15), total_points: draftQuestions.reduce((s, q) => s + q.points, 0) + selected.length * 10, updated_at: new Date().toISOString() };
+    
     let tid = id ? Number(id) : null;
-    const result = id ? await db.from('tests').update(meta).eq('id', tid) : await db.from('tests').insert(meta).select('id').single();
-    if (result.error) return message('testSaveMessage', 'Hata: ' + result.error.message);
+    const result = id ? await db.from('tests').update(meta).eq('id', tid).select('id').single() : await db.from('tests').insert(meta).select('id').single();
+    
+    if (result.error) return message('testSaveMessage', 'Test Tablosu Hatası: ' + result.error.message);
     if (!id) tid = Number(result.data.id);
+    
     await db.from('test_questions').delete().eq('test_id', tid);
-    const rows = [...selected.map((qid, i) => ({ test_id: tid, question_id: qid, position: i + 1, question_type: 'multiple_choice', points: 10, question_data: {} })), ...draftQuestions.map((q, i) => ({ test_id: tid, question_id: null, position: selected.length + i + 1, question_type: q.type, question_data: q.question_data, correct_answer: q.correct_answer, explanation: q.explanation, points: q.points }))];
-    await db.from('test_questions').insert(rows); message('testSaveMessage', `“${name}” kaydedildi.`); resetTestForm(); await loadTests();
+    
+    const rows = [
+        ...selected.map((qid, i) => ({ test_id: tid, question_id: qid, position: i + 1, question_type: 'multiple_choice', points: 10, question_data: {} })), 
+        ...draftQuestions.map((q, i) => ({ test_id: tid, question_id: null, position: selected.length + i + 1, question_type: q.type, question_data: q.question_data, correct_answer: q.correct_answer, explanation: q.explanation, points: q.points }))
+    ];
+    
+    const { error: insertErr } = await db.from('test_questions').insert(rows);
+    
+    // YENİ HATA YAKALAMA SİSTEMİ
+    if (insertErr) {
+        console.error("Supabase Insert Hatası:", insertErr);
+        $('testSaveMessage').style.color = '#dc2626'; // Kırmızı
+        return message('testSaveMessage', '🚨 SORULAR EKLENEMEDİ: ' + insertErr.message);
+    }
+    
+    $('testSaveMessage').style.color = 'var(--green-dark)';
+    message('testSaveMessage', `✅ “${name}” başarıyla kaydedildi.`); 
+    resetTestForm(); 
+    await loadTests();
 });
+
 function resetTestForm() { $('testForm')?.reset(); if($('testId')) $('testId').value = ''; if($('testDuration')) $('testDuration').value = '15'; message('testFormTitle', 'Yeni test oluştur'); draftQuestions = []; renderDraftQuestions(); renderQuestionPicker(); clearQuestionDraftForm(false); message('testSaveMessage', ''); }
 async function loadTests() {
     const { data } = await db.from('tests').select('*').order('id', { ascending: false }); tests = [];
@@ -266,14 +288,13 @@ function validateJson(obj) {
     });
     return t; 
 }
-
 function toJsonTest(t) { return { schema_version: '1.0', test: { title: t.name, description: t.description || '', level: t.level || 'A1', topic: t.topic || '', language: t.language || 'en', duration_minutes: t.duration_minutes || 15, questions: (t.questions || []).sort((a, b) => a.position - b.position).map((q, i) => { if (q.question_id !== null) { const old = questionPool.find(x => Number(x.id) === Number(q.question_id)); return { id: 'q' + (i + 1), type: 'multiple_choice', question: old?.question_text || q.question_data?.question || '', options: [{ id: 'A', text: old?.option_a || '' }, { id: 'B', text: old?.option_b || '' }, { id: 'C', text: old?.option_c || '' }, { id: 'D', text: old?.option_d || '' }], correct_answer: old?.correct_answer || 'A', explanation: q.explanation || '', points: q.points || 10 }; } return { id: 'q' + (i + 1), type: q.question_type, question: q.question_data?.question || '', ...Object.fromEntries(Object.entries(q.question_data || {}).filter(([k]) => k !== 'question')), correct_answer: q.correct_answer, explanation: q.explanation || '', points: q.points || 10 }; }) } }; }
 function downloadBlob(filename, text) { const url = URL.createObjectURL(new Blob([text], { type: 'application/json' })); const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url); }
 function downloadTest(t) { downloadBlob((t.name || 'test').replace(/[^a-z0-9-_]+/gi, '_') + '.json', JSON.stringify(toJsonTest(t), null, 2)); }
 function exportSelectedTest() { const targetId = $('exportTestSelect')?.value ? Number($('exportTestSelect').value) : Number($('testId')?.value); const t = tests.find(x => Number(x.id) === targetId); if (t) downloadTest(t); else message('jsonMessage', 'Test seçin.'); }
 function downloadJsonTemplate() { const sample = { schema_version: '1.0', test: { title: 'Örnek Test', questions: [{ id: 'q1', type: 'cloze_test', question: 'My name ___ John and I ___ 25 years old.', word_bank: ['is', 'are', 'am', 'was'], correct_answer: ['is', 'am'], points: 20 }] } }; if($('jsonPreview')) $('jsonPreview').value = JSON.stringify(sample, null, 2); downloadBlob('ornek-test.json', JSON.stringify(sample, null, 2)); }
 function importJsonFile() { const f = $('importFile')?.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => { if($('jsonPreview')) $('jsonPreview').value = String(r.result || ''); importJsonText(); }; r.readAsText(f); }
-async function importJsonText() { try { const t = validateJson(JSON.parse($('jsonPreview')?.value || '{}')); if($('testId')) $('testId').value = ''; if($('testName')) $('testName').value = t.title; if($('testDescription')) $('testDescription').value = t.description || ''; if($('testLevel')) $('testLevel').value = t.level || 'A1'; if($('testTopic')) $('testTopic').value = t.topic || ''; if($('testDuration')) $('testDuration').value = t.duration_minutes || 15; draftQuestions = (t.questions||[]).map((q, i) => ({ id: 'import_' + i, type: q.type, question: q.question, question_data: Object.fromEntries(Object.entries(q).filter(([k]) => !['id', 'type', 'correct_answer', 'explanation', 'points'].includes(k))), correct_answer: q.correct_answer, explanation: q.explanation || '', points: Math.max(1, Number(q.points) || 10) })); document.querySelectorAll('input[name="testQuestion"]').forEach(i => i.checked = false); renderDraftQuestions(); document.querySelector('.admin-tab[data-tab="tests"]')?.click(); $('testEditorCard')?.scrollIntoView({ behavior: 'smooth' }); message('jsonMessage', '✅ Yüklendi.'); } catch (e) { message('jsonMessage', 'HATA: ' + e.message); } }
+async function importJsonText() { try { const t = validateJson(JSON.parse($('jsonPreview')?.value || '{}')); if($('testId')) $('testId').value = ''; if($('testName')) $('testName').value = t.title; if($('testDescription')) $('testDescription').value = t.description || ''; if($('testLevel')) $('testLevel').value = t.level || 'A1'; if($('testTopic')) $('testTopic').value = t.topic || ''; if($('testDuration')) $('testDuration').value = t.duration_minutes || 15; draftQuestions = (t.questions||[]).map((q, i) => ({ id: 'import_' + i, type: q.type, question: q.question, question_data: Object.fromEntries(Object.entries(q).filter(([k]) => !['id', 'type', 'correct_answer', 'explanation', 'points'].includes(k))), correct_answer: q.correct_answer, explanation: q.explanation || '', points: Math.max(1, Number(q.points) || 10) })); document.querySelectorAll('input[name="testQuestion"]').forEach(i => i.checked = false); renderDraftQuestions(); document.querySelector('.admin-tab[data-tab="tests"]')?.click(); $('testEditorCard')?.scrollIntoView({ behavior: 'smooth' }); message('jsonMessage', '✅ Yüklendi. Lütfen "Testi Kaydet" butonuna basınız.'); } catch (e) { message('jsonMessage', 'HATA: ' + e.message); } }
 
 // --- GAME FLOW ---
 $('gameClass')?.addEventListener('change', loadClassTests);
