@@ -177,3 +177,25 @@ button { font-family: var(--font); font-weight: 800; border-radius: 14px; border
     .podium-step { width: 80px; }
     .match-container { flex-direction: column; gap: 5px; }
 }
+
+
+
+/* --- OKUMA PARÇASI (READING CONTEXT) VE CLOZE TEST --- */
+.question-context {
+    background: #fffbe8; border-left: 6px solid var(--yellow); padding: 15px 20px;
+    border-radius: 12px; margin-bottom: 25px; font-size: 16px; color: #475569; line-height: 1.6;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.03); white-space: pre-wrap; font-weight: 700;
+}
+.cloze-container { font-size: 22px; color: var(--navy); line-height: 2; margin-bottom: 20px; font-weight: 800; }
+.cloze-blank {
+    display: inline-flex; align-items: center; justify-content: center; min-width: 80px;
+    height: 40px; border: 3px dashed #cbd5e1; border-radius: 10px; background: #f8fafc;
+    margin: 0 5px; cursor: pointer; color: var(--blue-dark); font-weight: 900;
+    vertical-align: middle; transition: 0.2s; padding: 0 15px; font-size: 18px;
+}
+.cloze-blank.filled { border-style: solid; border-color: var(--blue); background: #eff6ff; }
+.cloze-input {
+    width: 120px; display: inline-block; border: 3px dashed #cbd5e1; border-radius: 10px;
+    background: #f8fafc; padding: 5px 10px; text-align: center; color: var(--blue-dark); font-weight: 900;
+}
+.cloze-input:focus { border-color: var(--blue); border-style: solid; outline: none; background: white; width:160px; }
